@@ -25,21 +25,22 @@ io_ops()
     path[0] = '0' + (pid / 10);
     path[1] = '0' + (pid % 10);
 
+    // <uptime start>
     wfd = open(path, O_CREATE | O_WRONLY);
-
     for(int i = 0; i < IO_EXPERIMENT_LEN; ++i){
       write(wfd, data, IO_OPSIZE);
     }
-
     close(wfd);
+    // <uptime start>
+    // uint64 reading_time =; 
 
     rfd = open(path, O_RDONLY);
-
     for(int i = 0; i < IO_EXPERIMENT_LEN; ++i){
       read(rfd, data, IO_OPSIZE);
     }
 
     close(rfd);
+
     return 2 * IO_EXPERIMENT_LEN;
 }
 
@@ -48,22 +49,22 @@ iobench(int N, int pid)
 {
   memset(data, 'a', sizeof(data));
   uint64 start_tick, end_tick, elapsed_ticks, metric;
-  int total_iops;
+  uint64 total_iops/* , total_kiops */;
 
   int *measurements = malloc(sizeof(int) * N);
 
   for (int i = 0; i < N; i++){
     start_tick = uptime();
-
-    // Realizar escrituras y lecturas de archivos
     total_iops = io_ops();
-
     end_tick = uptime();
+
     elapsed_ticks = end_tick - start_tick;
-    metric = total_iops;  // Cambiar esto por la métrica adecuada
+    // total_kiops = total_iops / 1000;
+
+    metric = total_iops / elapsed_ticks;
     measurements[i] = metric;
-    printf("%d\t[iobench]\tmetric_name_io\t%d\t%d\t%d\n",
-           pid, metric, start_tick, elapsed_ticks);
+    printf("%d;[iobench];%d;%d;%d;%d\n",
+           i,pid, metric, start_tick, elapsed_ticks);
   }
 }
 

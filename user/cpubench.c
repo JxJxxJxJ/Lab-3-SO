@@ -8,12 +8,10 @@
 #include "kernel/memlayout.h"
 #include "kernel/riscv.h"
 
-
 #define CPU_MATRIX_SIZE 128
 #define CPU_EXPERIMENT_LEN 256
 
 // #define MEASURE_PERIOD 1000
-
 
 // Multiplica dos matrices de tamaño CPU_MATRIX_SIZE x CPU_MATRIX_SIZE
 // y devuelve la cantidad de operaciones realizadas / 1000
@@ -45,7 +43,8 @@ cpu_ops_cycle()
     }
   }
 
-  return (kops_matmul * CPU_EXPERIMENT_LEN);
+  return (kops_matmul * CPU_EXPERIMENT_LEN); 
+  // ((128)^3 / 1000) * 256 = 536 870.912
 }
 
 void 
@@ -56,19 +55,17 @@ cpubench(int N, int pid)
 
   // Realizar N ciclos de medicion
   for(int i = 0; i < N; ++i) {
-    total_cpu_kops = 0;
     start_tick = uptime();
-
     total_cpu_kops = cpu_ops_cycle();
-
     end_tick = uptime();
+
     elapsed_ticks = end_tick - start_tick;
 
-    // TODO: Cambiar esto por la métrica adecuada
-    metric = total_cpu_kops;
+    // metric mide la cantidad de operaciones por unidad de tiempo (ticks)
+    metric = total_cpu_kops / elapsed_ticks;
     measurements[i] = metric;
-    printf("%d\t[cpubench]\t \t%d\t%d\t%d\n",
-           pid, metric, start_tick, elapsed_ticks);
+    printf("[cpubench];%d,%d;%d;%d;%d\n",
+           i,pid, metric, start_tick, elapsed_ticks);
   }
 }
 
