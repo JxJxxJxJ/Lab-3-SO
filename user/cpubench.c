@@ -67,7 +67,7 @@ cpubench(int N, int pid)
     // TODO: Cambiar esto por la métrica adecuada
     metric = total_cpu_kops;
     measurements[i] = metric;
-    printf("%d\t[cpubench]\tmetric_name_cpu\t%d\t%d\t%d\n",
+    printf("%d\t[cpubench]\t \t%d\t%d\t%d\n",
            pid, metric, start_tick, elapsed_ticks);
   }
 }
