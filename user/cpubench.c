@@ -64,7 +64,7 @@ cpubench(int N, int pid)
     // metric mide la cantidad de operaciones por unidad de tiempo (ticks)
     metric = total_cpu_kops / elapsed_ticks;
     measurements[i] = metric;
-    printf("[cpubench];%d,%d;%d;%d;%d\n",
+    printf("%d;[cpubench];%d;%d;%d;%d\n",
            i,pid, metric, start_tick, elapsed_ticks);
   }
 }
