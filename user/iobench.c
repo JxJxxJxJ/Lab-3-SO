@@ -48,10 +48,7 @@ void
 iobench(int N, int pid)
 {
   memset(data, 'a', sizeof(data));
-  uint64 start_tick, end_tick, elapsed_ticks, metric;
-  uint64 total_iops/* , total_kiops */;
-
-  int *measurements = malloc(sizeof(int) * N);
+  uint64 start_tick, end_tick, elapsed_ticks, metric, total_iops, scale = 1024;
 
   for (int i = 0; i < N; i++){
     start_tick = uptime();
@@ -59,12 +56,16 @@ iobench(int N, int pid)
     end_tick = uptime();
 
     elapsed_ticks = end_tick - start_tick;
-    // total_kiops = total_iops / 1000;
 
-    metric = total_iops / elapsed_ticks;
-    measurements[i] = metric;
+    // Multiplico por 1024 para que no se me redondeen a 0 las cosas,
+    // mantieniendo el overhead al minimo
+    metric = (total_iops * scale) / elapsed_ticks; 
+    // En excel puedo escribir la metrica "des-escalada"
+    // metric / scale == total_iops / elapsed_ticks
+    // hago esto porque el redondeo de division entera me mata si no
+
     printf("%d;[iobench];%d;%d;%d;%d\n",
-           i,pid, metric, start_tick, elapsed_ticks);
+           i, pid, metric, start_tick, elapsed_ticks);
   }
 }
 

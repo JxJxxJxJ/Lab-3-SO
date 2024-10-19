@@ -51,7 +51,7 @@ void
 cpubench(int N, int pid) 
 {
   uint64 start_tick, end_tick, elapsed_ticks, total_cpu_kops, metric;
-  int *measurements = malloc(sizeof(int) * N);
+  uint64 scale = 1024;
 
   // Realizar N ciclos de medicion
   for(int i = 0; i < N; ++i) {
@@ -61,11 +61,15 @@ cpubench(int N, int pid)
 
     elapsed_ticks = end_tick - start_tick;
 
-    // metric mide la cantidad de operaciones por unidad de tiempo (ticks)
-    metric = total_cpu_kops / elapsed_ticks;
-    measurements[i] = metric;
+    // Multiplico por 1024 para que no se me redondeen a 0 las cosas,
+    // mantieniendo el overhead al minimo
+    metric = (total_cpu_kops * scale) / elapsed_ticks; 
+    // En excel puedo escribir la metrica "des-escalada"
+    // metric / scale == total_cpu_kops / elapsed_ticks
+    // hago esto porque el redondeo de division entera me mata si no
+
     printf("%d;[cpubench];%d;%d;%d;%d\n",
-           i,pid, metric, start_tick, elapsed_ticks);
+           i, pid, metric, start_tick, elapsed_ticks);
   }
 }
 
