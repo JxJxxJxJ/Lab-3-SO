@@ -587,7 +587,7 @@ Lo mismo hicimos con `user/iobench.c`. Tenemos:
 
 Al correr QEMU con `CPUS=1` estamos limitando a que no haya más de un núcleo ejecutando procesos de XV6 a la vez. Luego, no hay una ejecución paralela multinúcleo. 
 Sin embargo, el núcleo de QEMU puede ir rotando entre procesos (pues QEMU tiene un planificador Round-Robin) dándole un cuanto de ejecución a cada uno hasta que todos terminan su ejecución por completo.  
-Para evaluar si el planificador prioriza ejecutar procesos *CPU bound* (como `cpubench`) o *IO bound* (como `iobench`) podemos ejecutarlo varias veces y analizar cuál proceso obtiene primero la CPU en base al `start_tick`, el cual indica el tick inicial en el que se empezó a ejecutar la instrucción; por ende, aquel proceso con el menor `start_tick` es aquel escogido primero por el planificador. Haremos uso de los experimentos **e** y **f**, pues emplean procesos tanto *CPU bound* como *IO bound* en su ejecución.
+Para evaluar si el planificador prioriza ejecutar procesos *CPU-bound* (como `cpubench`) o *I/O-bound* (como `iobench`) podemos ejecutarlo varias veces y analizar cuál proceso obtiene primero la CPU en base al `start_tick`, el cual indica el tick inicial en el que se empezó a ejecutar la instrucción; por ende, aquel proceso con el menor `start_tick` es aquel escogido primero por el planificador. Haremos uso de los experimentos **e** y **f**, pues emplean procesos tanto CPU-bound como IO-bound en su ejecución.
 
 ---
 **e) Caso: io+cpu(3)**
@@ -717,20 +717,20 @@ Luego podríamos hipotetizar que el `<programa1>` es elegido por el planificador
 ```
 <programa1> &; <programa2> &; <programa3> &; <programa 4> &
 ```
-Es decir, el planificador escogería primero a aquel proceso ubicado al inicio de la línea de ejecución y no haría algún favoritismo en particular por un proceso CPU bound o por uno IO bound.
+Es decir, el planificador escogería primero a aquel proceso ubicado al inicio de la línea de ejecución y no haría algún favoritismo en particular por un proceso CPU-bound o por uno I/O-bound.
 
-#### 3. ¿Cambia el rendimiento de los procesos IOBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
-Hacemos foco en los experimentos donde intervienen procesos IO-bound: `io`, `io+io(2)` y `io+cpu(3)`.
+#### 3. ¿Cambia el rendimiento de los procesos I/O-bound con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
+Hacemos foco en los experimentos donde intervienen procesos I/O-bound: `io`, `io+io(2)` y `io+cpu(3)`.
 ![Gráfica de IO, Q=10ms](https://i.imgur.com/jsEhCnv.png)
 
 Podemos notar dos tendencias que destacan: 
-* Una para el escenario en donde solo intervienen procesos IO-bound (en `io` e `io+io(2)`), y
-* otra donde se ejecuta un proceso IO-bound junto a otros tres procesos CPU-bound, es decir el caso `io+cpu(3)`.  
-En el primer caso, las métricas de IOPS/tick y el tiempo promedio transcurrido (evaluado en ms) no parecen variar demasiado una respecto de la otra, ya que los procesos IO-bound no utilizan completamente su cuanto. Esto se debe a que la CPU siempre está disponible cuando los procesos lo requieren, lo que minimiza el *overhead* o sobrecarga; tener el CPU siempre disponible es comparable a ejecutarse solo.  
+* Una para el escenario en donde solo intervienen procesos I/O-bound (en `io` e `io+io(2)`), y
+* otra donde se ejecuta un proceso I/O-bound junto a otros tres procesos CPU-bound, es decir el caso `io+cpu(3)`.  
+En el primer caso, las métricas de IOPS/tick y el tiempo promedio transcurrido (evaluado en ms) no parecen variar demasiado una respecto de la otra, ya que los procesos I/O-bound no utilizan completamente su cuanto. Esto se debe a que la CPU siempre está disponible cuando los procesos lo requieren, lo que minimiza el *overhead* o sobrecarga; tener el CPU siempre disponible es comparable a ejecutarse solo.  
 
-En el segundo caso, donde coexisten un proceso IO-bound y tres CPU-bound, el proceso IO-bound devuelve el CPU, pero los procesos CPU-bound utilizan su cuanto completo antes de cederlo, a diferencia del comportamiento observado en el primer caso donde lo devolvían casi al instante. Esto incrementa el tiempo que el proceso IO-bound necesita para completar un ciclo de medición, ya que ahora debe esperar a que los otros procesos agoten su cuanto de CPU, lo cual no ocurría anteriormente.
+En el segundo caso, donde coexisten un proceso I/O-bound y tres CPU-bound, el proceso I/O-bound devuelve el CPU, pero los procesos CPU-bound utilizan su cuanto completo antes de cederlo, a diferencia del comportamiento observado en el primer caso donde lo devolvían casi al instante. Esto incrementa el tiempo que el proceso I/O-bound necesita para completar un ciclo de medición, ya que ahora debe esperar a que los otros procesos agoten su cuanto de CPU, lo cual no ocurría anteriormente.
 
-#### 4. ¿Cambia el rendimiento de los procesos CPUBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
+#### 4. ¿Cambia el rendimiento de los procesos CPU-bound con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
 Ahora nos interesa analizar a aquellos experimentos donde intervienen procesos CPU-bound, por lo tanto nos enfocamos en `cpu`, `cpu+cpu(2)` y `cpu+io(3)`. Volvemos a emplear el gráfico expuesto en la consigna anterior:
 ![Gráfica de CPU, Q=10ms](https://i.imgur.com/jsEhCnv.png)  
 Veamos en detalle lo que sucede en cada experimento:
@@ -738,11 +738,12 @@ Veamos en detalle lo que sucede en cada experimento:
 - **3 procesos CPU-bound**: En este escenario, el CPU alterna entre tres procesos. Aunque cada proceso sigue recibiendo el mismo tiempo de ejecución por cuanto (10 ms), **cada proceso debe esperar más entre uno de sus cuantums y el siguiente**, ya que el CPU está ocupado ejecutando los otros dos procesos. Como resultado, **cada proceso CPU-bound tiene menos oportunidades de ejecutarse en un intervalo de tiempo determinado**, lo que reduce el número de operaciones por tick **desde una perspectiva global**.
 - **1 proceso CPU-bound, 3 procesos I/O-bound**: Cuando se introduce un proceso I/O-bound, este libera el CPU antes de agotar todo su cuanto, lo que **permite que los procesos CPU-bound accedan al CPU con mayor frecuencia**. Por este motivo, el rendimiento en el experimento `cpu+io(3)` es superior al de `cpu(3)`, ya que los procesos CPU-bound obtienen más tiempo de CPU debido a que los procesos I/O-bound no utilizan su cuanto completamente."
 
-#### 5. ¿Es adecuado comparar la cantidad de operaciones de cpu con la cantidad de operaciones iobound?
+#### 5. ¿Es adecuado comparar la cantidad de operaciones de CPU con la cantidad de operaciones I/O-bound?
 Consideramos que no es adecuado comparar directamente estas métricas, ya que en un ciclo de medición:
 
 - KOPS mide la cantidad de sumas y multiplicaciones en el producto de matrices (observable en la función `cpu_ops_cycle()`), y
-- IOPS mide la cantidad de lecturas y escrituras sobre un archivo temporal (en la función `io_ops()`).
+- IOPS mide la cantidad de lecturas y escrituras sobre un archivo temporal (en la función `io_ops()`).  
+
 Estas son operaciones esencialmente diferentes.
 Si bien es posible compararlas conceptualmente en términos de "operaciones" dentro de su respectivo contexto, la comparación solo tiene sentido al observar su relación con el tiempo de ejecución relativo. Más allá de eso, no son equivalentes ni comparables directamente.  
 
