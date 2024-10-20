@@ -14,6 +14,8 @@ Los **integrantes** que trabajaron en conjunto durante este proyecto son:
     * [Pregunta 4](#preg-4)
     * [Pregunta 5](#preg-5)
  2. [Segunda parte: Medir operaciones de cómputo y de entrada/salida](#segunda-parte)
+    * [Experimento 1](#experimento-1)
+    * [Experimento 2](#experimento-2)
  3. [Tercera parte: Asignar prioridad a los procesos](#tercera-parte)
  4. [Cuarta parte: Implementar MLFQ](#cuarta-parte)
 
@@ -22,7 +24,7 @@ Los **integrantes** que trabajaron en conjunto durante este proyecto son:
 
 <a name="preg-1"></a>
 ### **1. ¿Qué política  de planificación utiliza `xv6-riscv` para elegir el próximo proceso a ejecutarse?**
-La función `scheduler()` del módulo `proc.c` de xv6 puede darnos un indicio de la respuesta:
+La función `scheduler()` del módulo `proc.c` de XV6 puede darnos un indicio de la respuesta:
 ```c
 // proc.c
 
@@ -67,11 +69,11 @@ scheduler(void)
 
 // ...
 ```
-Este es el planificador de xv6 (no muy difícil de deducir tras leer el comentario por encima de la función). Analicemos un poco el código:  
+Este es el planificador de XV6 (no muy difícil de deducir tras leer el comentario por encima de la función). Analicemos un poco el código:  
 
 El planificador recorre todos los procesos del sistema de manera secuencial, desde `proc[0]` hasta `proc[NPROC - 1]`, buscando a alguno que esté listo para ejecutarse (`RUNNABLE`). Una vez lo encuentra, cambia su estado a `RUNNING` (es decir, lo ejecuta) y realiza el debido cambio de contexto con la función `swtch()`. Una vez que el proceso termina su ejecución o cede el control nuevamente a la CPU, el planificador continúa con el siguiente en la lista. Previo a ello, se comenta que el planificador habilita las interrupciones para permitir que dispositivos, como el temporizador, puedan interrumpir al proceso en ejecución y devolver el control a la CPU. 
 
-Esto nos da todos los ingredientes para poder afirmar que la política de planificación que utiliza xv6 es **Round-Robin** (RR), la cual permite a un proceso ejecutarse durante un período determinado de tiempo (time slice), denominado *quantum*, para luego repetir el procedimiento con otro proceso que se encuentre listo para ejecutar. 
+Esto nos da todos los ingredientes para poder afirmar que la política de planificación que utiliza XV6 es **Round-Robin** (RR), la cual permite a un proceso ejecutarse durante un período determinado de tiempo (time slice), denominado *quantum*, para luego repetir el procedimiento con otro proceso que se encuentre listo para ejecutar. 
 
 El *quantum* por defecto, como cada vez que se genera un timer-interrupt `scheduler()` reanuda su ejecución, puede decirse que es de `~10ms` (que es el intervalo del timer-interrupt por defecto en XV6).
 
@@ -79,7 +81,7 @@ El *quantum* por defecto, como cada vez que se genera un timer-interrupt `schedu
 <a name="preg-2"></a>
 ### **2. ¿Cúales son los estados en los que un proceso puede permanecer en `xv6-riscv` y qué los hace cambiar de estado?**
 El enunciado anterior parece habernos "spoileado" la respuesta al mostrarnos los estados `RUNNABLE` y `RUNNING`, pero aún hay más.   
-Los estados en los que puede fluctuar un proceso dentro de xv6 están enumerados en el módulo `proc.h`:
+Los estados en los que puede fluctuar un proceso dentro de XV6 están enumerados en el módulo `proc.h`:
 ```c
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 ```
@@ -112,8 +114,8 @@ En cuanto a qué debe pasar para cambiar de un estado a otro:
 
 * **ZOMBIE -> UNUSED**: el proceso padre limpia los recursos del proceso hijo finalizado mediante `wait()`.  
 
-Una forma más ilustrativa de poder ver estas transiciones entre estados en xv6 se condensa en el siguiente diagrama de estados:
-![Diagrama de estados de procesos en xv6](https://ucema.edu.ar/u/jmc/siop/U1/xv6_states.png)  
+Una forma más ilustrativa de poder ver estas transiciones entre estados en XV6 se condensa en el siguiente diagrama de estados:
+![Diagrama de estados de procesos en XV6](https://ucema.edu.ar/u/jmc/siop/U1/xv6_states.png)  
 
 **ACLARACIÓN**: *EMBRYO* es equivalente a *USED* en nuestra definición.
 
@@ -122,11 +124,11 @@ Una forma más ilustrativa de poder ver estas transiciones entre estados en xv6 
 ### **3. ¿Qué es un *quantum*? ¿Dónde se define en el código? ¿Cuánto dura un *quantum* en `xv6-riscv`?**
 Un **quantum** es el intervalo de tiempo durante el cual un proceso puede ejecutarse en la CPU antes de que el sistema operativo le interrumpa para permitir que otro proceso se ejecute.  
 
-En xv6, el quantum esta determinado indirectamente por la frecuencia en la que se realice una timer-interrupt la cual es de `~100ms`.
+En XV6, el quantum esta determinado indirectamente por la frecuencia en la que se realice una timer-interrupt la cual es de `~100ms`.
 
 A continuación se explica cómo se generan interrupciones periódicas y por qué decimos que el quantum esta ligado a éstas.
 ### 3.1 - ¿Cómo generar interrupciones periódicas?
-En el módulo `start.c -> timerinit()` se declaran valores importantes que determinarán el comportamiento de las interrupciones por hardware en xv6:
+En el módulo `start.c -> timerinit()` se declaran valores importantes que determinarán el comportamiento de las interrupciones por hardware en XV6:
 ```c
 // arrange to receive timer interrupts.
 // they will arrive in machine mode at
@@ -168,7 +170,7 @@ En particular nos llama poderosamente la atención la línea donde se define la 
 int interval = 1000000; // cycles; about 1/10th second in qemu.
 ``` 
 
-Dicha variable especifica la cantidad de ciclos de CPU que deben ocurrir antes de que ocurra una interrupción de temporizador, los cuales son **1.000.000** en xv6. Como remarca el comentario, esto es aproximadamente *0.1 segundos* o *100 milisegundos* en QEMU.  
+Dicha variable especifica la cantidad de ciclos de CPU que deben ocurrir antes de que ocurra una interrupción de temporizador, los cuales son **1.000.000** en XV6. Como remarca el comentario, esto es aproximadamente *0.1 segundos* o *100 milisegundos* en QEMU.  
 
 En `kernelvec.S` se configura el período del timer-interrupt del cual se encargará el hardware (RISC-V) con los valores declarados en `start.c -> timerinit();` (como `interval = 1000000`). Esto se logra manipulando el CLINT.
 ```
@@ -330,17 +332,17 @@ sched(void)
 ```
 
 En definitiva, el scheduler cambia a un nuevo proceso cada vez que se genera un timer-interrupt, lo que, por defecto, ocurre cada `~100ms`. 
-O que es lo mismo, xv6 tiene una planificacion Round-Robin con un quanto de `~100ms`.
+O que es lo mismo, XV6 tiene una planificacion Round-Robin con un quanto de `~100ms`.
 <a name="preg-4"></a>
 ### **4. ¿En qué parte del código ocurre el cambio de contexto en `xv6-riscv`? ¿En qué funciones un proceso deja de ser ejecutado? ¿En qué funciones se elige el nuevo proceso a ejecutar?**
 
-Como vimos previamente en el código de la función `scheduler()`, xv6 realiza un cambio de contexto a la hora de planificar o desplanificar algún proceso en el sistema. Puede verse reflejado en esta línea:  
+Como vimos previamente en el código de la función `scheduler()`, XV6 realiza un cambio de contexto a la hora de planificar o desplanificar algún proceso en el sistema. Puede verse reflejado en esta línea:  
 ```c
 swtch(&c->context, &p->context);
 ```
 
 Aquí el contexto de la CPU (`c->context`) se guarda, y el contexto del proceso `p` (`p->context`) se carga, lo que indica la ejecución del mismo.  
-Por lo tanto, la función encargada de realizar los cambios de contexto en xv6 es `swtch()`, la cual se encuentra alojada en el módulo `swtch.S`.  
+Por lo tanto, la función encargada de realizar los cambios de contexto en XV6 es `swtch()`, la cual se encuentra alojada en el módulo `swtch.S`.  
 ```assembly
 # Context switch
 #
@@ -385,7 +387,7 @@ swtch:
 
 Nótese que es una función construida en lenguaje ensamblador que se compone de 28 instrucciones, 14 de almacenamiento o guardado (`sd`) correspondiente al contexto viejo (*old context*, como se refiere en el comentario) y otras 14 de carga (`ld`) del nuevo contexto (*new context*).  
 
-En xv6, un proceso deja de ser ejecutado cuando este cede voluntariamente la CPU o cuando es interrumpido por eventos externos (interrupciones de hardware, como un quantum agotado). Tomando como punto de apoyo al diagrama de estados de procesos que expusimos más arriba, ponemos el foco sobre aquellas transiciones donde un programa en ejecución deja de ejecutarse, es decir donde pasa de *RUNNING* hacia otro estado.  
+En XV6, un proceso deja de ser ejecutado cuando este cede voluntariamente la CPU o cuando es interrumpido por eventos externos (interrupciones de hardware, como un quantum agotado). Tomando como punto de apoyo al diagrama de estados de procesos que expusimos más arriba, ponemos el foco sobre aquellas transiciones donde un programa en ejecución deja de ejecutarse, es decir donde pasa de *RUNNING* hacia otro estado.  
 
 * **RUNNING -> RUNNABLE**: cuando sucede una interrupción por timer el proceso cede el control de la CPU mediante `yield()`. Esta función se encuentra definida en el módulo `proc.c`:
 ```c
@@ -483,9 +485,9 @@ exit(int status)
 }
 ```
 
-En cuanto a las funciones que participan en la elección del próximo proceso a ejecutar en xv6, son dos: `scheduler()` y  `sched()`.  
+En cuanto a las funciones que participan en la elección del próximo proceso a ejecutar en XV6, son dos: `scheduler()` y  `sched()`.  
 
-Hemos desarrollado a `scheduler()` en preguntas anteriores, pero haremos una descripción corta de la función. Básicamente es el planificador de xv6, el cual recorre toda la tabla de procesos buscando alguno con estado *RUNNABLE* y lo ejecuta, dando el control al proceso mediante un cambio de contexto.  
+Hemos desarrollado a `scheduler()` en preguntas anteriores, pero haremos una descripción corta de la función. Básicamente es el planificador de XV6, el cual recorre toda la tabla de procesos buscando alguno con estado *RUNNABLE* y lo ejecuta, dando el control al proceso mediante un cambio de contexto.  
 
 Por otro lado, `sched()` se encarga de ceder el control nuevamente al planificador (también mediante un cambio de contexto), que luego elegirá otro proceso para ejecutar. El código es el siguiente (ubicado también en el módulo `proc.c`):
 ```c
@@ -522,7 +524,7 @@ Nótese que `sched()` al ser una función que devuelve el control al planificado
 <a name="preg-5"></a>
 ### **5. ¿El cambio de contexto consume tiempo de un *quantum*?**
 
-No. Se podría visualizar la utilización del CPU en xv6 de la siguiente forma: 
+No. Se podría visualizar la utilización del CPU en XV6 de la siguiente forma: 
 ```
 ... <quantum> <trap> <context_switch> <return_from_trap> <quantum> <trap> <contextswitch> ...
 ```` 
@@ -534,42 +536,61 @@ timer-interrupt -> kerneltrap() -> yield() -> sched() -> swtch() -> scheduler()
 
 <a name="segunda-parte"></a>
 ## **Segunda parte: Medir operaciones de cómputo y de entrada/salida**
-## Experimento 1: ¿Cómo son planificados los programas iobound y cpubound?
+Nos parece oportuno introducir la **métrica** que empleamos a la hora de las mediciones experimentales. Debido a que la naturaleza de ambas operaciones (CPU e I/O) es diferente y no comparable, establecimos una métrica propia para cada tipo de procesos:
+| Instrucción | Métrica | Código |
+| :---: | :---: | :---: |
+| `cpubench` | kilo-operaciones CPU por tick (**kops / ticks**) | `metric = (total_cpu_kops * scale) / elapsed_ticks`, donde `scale=1024` |
+| `iobench` | operaciones I/O por tick (**iops / ticks**)| `metric = (total_iops * scale) / elapsed_ticks`, donde `scale=1024` |  
 
-1. Describa los parámetros de los programas cpubench e iobench para este experimento (o sea, los define al principio y el valor de N. Tener en cuenta que podrían cambiar en experimentos futuros, pero que si lo hacen los resultados ya no serán comparables).
-1.1 Decidimos que cada programa realice 30 ciclos de medición (N=30). Para encontrar el N primero vimos cuántos ciclos puede realizar nuestra CPU en un minuto:
-```
-Ncpu = 31 en 1 min (0.1ms)
-Nio = 15 en 1 min (0.1ms)
+Esta elección permite comparar la carga de trabajo realizada por la CPU y el subsistema de I/O durante un intervalo de cuanto, considerándola razonable para estudiar el rendimiento en ambos casos.  
+Algo que quizás traiga confusión es la variable `scale` que figura en el código de la métrica. Si bien ambas instrucciones se encargan de medir operaciones por ticks, la _cantidad_ de operaciones que realiza cada una es muy diferente.  
+`cpubench` trabaja sobre el conteo de operaciones de multiplicación de tres matrices, y las devuelve divididas en 1000 (kops). Esto da un indicio de que siempre se manejan números grandes con esta instrucción, y eso nos agrada de cierta forma.  
+No obstante, las cosas se dificultan con `iobench`. La instrucción realiza `IO_EXPERIMENT_LEN` operaciones de lectura y `IO_EXPERIMENT_LEN` operaciones de escritura, es decir `2 * IO_EXPERIMENT_LEN` operaciones en total. En caso de que el valor de la variable sea muy pequeño y `elapsed_ticks` sea mayor a este, si se hiciera `total_iops / elapsed_ticks` resultaría en un valor aproximado a 0 (como 0.00425 por ejemplo) y XV6, al no soportar valores de punto flotante en su estructura, lo redondearía a 0 entero. Es por ello que `scale` resuelve este problema, incrementando notablemente el dividendo para evitar redondeos que no nos permitan llevar a cabo los experimentos de manera adecuada.
+Luego incorporamos `scale` a `cpubench` en pos de mantener cierta uniformidad en ambas variables `metric`.  
+<a name="experimento-1"></a>
+### Experimento 1: ¿Cómo son planificados los programas `iobound` y `cpubound`?
 
-Ncpu = 31 en 11sec (1ms)
-Nio = 15 en 24sec (1ms)
+#### 1. Describa los parámetros de los programas `cpubench` e `iobench` para este experimento (o sea, los `define` al principio y el valor de `N`. Tener en cuenta que podrían cambiar en experimentos futuros, pero que si lo hacen los resultados ya no serán comparables).
 
-Ncpu = 31 en 10sec (10ms)
-Nio = 15 en 20sec (10ms)
+Decidimos que cada programa realice 30 ciclos de medición (es decir, **N = 30**). Para escoger dicho parámetro primero establecimos un tiempo de ejecución de **1 minuto** para las instrucciones y observamos, con cronómetro mediante, la cantidad de ciclos que podía realizar nuestra CPU en dicha cantidad de tiempo. La medición inicial se realizó sobre el cuanto `Q=0.1 ms` y se trató de obtener la cantidad de ciclos que realizaban en un minuto las operaciones `cpubench` e `iobench`, obteniendo los siguientes resultados:
 ```
-Y nos ajustamos al peor caso (el más lento), es decir cuando el scheduler tiene un cuanto `Q=0.1ms`. En este peor caso 
+N_cpu = 31 en 1 min (0.1 ms)
+N_io  = 15 en 1 min (0.1 ms)
 ```
-cpubench 30 tarda ~1 minuto  (0.1ms)
-iobench  30 tarda ~2 minutos (0.1ms)
+Siendo `N_cpu=31` y `N_io=15` la cantidad de ciclos de ejecución que pueden realizar las operaciones `cpubench` e `iobench` en el intervalo de tiempo determinado. Posteriormente se modificó la duración del cuanto en dos ocasiones (primero `Q=1 ms` y luego `Q=10 ms`) para observar cuánto tardaba la CPU en realizar 31 ciclos `cpubench` y 15 ciclos `iobench` con un *time slice* diferente:
 ```
-Y los demás casos (`Q=1ms`, `Q=0.1ms`) son mas rápidos, pero siguen dándole tiempo al scheduler de hacer context switch reiteradas veces.
+N_cpu = 31 en 11 s (1 ms)
+N_io  = 15 en 24 s (1 ms)
 
-1.2 En `user/cpubench.c` no tocamos los parámetros `CPU_MATRIX_SIZE` ni `CPU_EXPERIMENT_LEN`, es decir los dejamos de la siguiente manera:
-	* `#define CPU_MATRIX_SIZE 128`
-	* `#define CPU_EXPERIMENT_LEN 256`
-Y lo mismo hicimos con `user/iobench.c`, tenemos:
-	* `#define IO_OPSIZE 64`
-	* `#define IO_EXPERIMENT_LEN 512`
+N_cpu = 31 en 10 s (10 ms)
+N_io  = 15 en 20 s (10 ms)
+```
+Luego nos ajustamos al peor caso (el más lento), es decir cuando el planificador tiene un cuanto `Q=0.1 ms`. En este peor caso 
+```
+cpubench 30 tarda ~1 minuto  (0.1 ms)
+iobench  30 tarda ~2 minutos (0.1 ms)
+```
+Y los demás casos (`Q=1 ms`, `Q=0.1 ms`), si bien son más rápidos, siguen dándole tiempo al planificador de hacer cambios de contexto reiteradas veces. Por lo tanto, **N = 30** es una opción que nos convence para mantener a lo largo del experimento bajo diferentes cuantos.
+
+Por otro lado, en `user/cpubench.c` no modificamos los parámetros `CPU_MATRIX_SIZE` ni `CPU_EXPERIMENT_LEN`, es decir los dejamos de la siguiente manera:
+```c
+#define CPU_MATRIX_SIZE 128
+#define CPU_EXPERIMENT_LEN 256
+```
+Lo mismo hicimos con `user/iobench.c`. Tenemos:
+```c
+#define IO_OPSIZE 64
+#define IO_EXPERIMENT_LEN 512
+```
 	 
-2. ¿Los procesos se ejecutan en paralelo? ¿En promedio, qué proceso o procesos se ejecutan primero? Hacer una **observación cualitativa**.
+#### 2. ¿Los procesos se ejecutan en paralelo? ¿En promedio, qué proceso o procesos se ejecutan primero? Hacer una **observación cualitativa**.
 
-Al correr QEMU con `CPU=1` estamos limitando a que no haya mas de un core corriendo procesos de XV6 a la vez. Luego, no hay una ejecucion paralela multicore. 
-Sin embargo el core de QEMU puede ir rotando entre procesos (pues QEMU tiene un scheduler Round-Robin) dándole un cuanto de ejecución a cada uno hasta que todos terminan su ejecución por completo.
+Al correr QEMU con `CPUS=1` estamos limitando a que no haya más de un núcleo ejecutando procesos de XV6 a la vez. Luego, no hay una ejecución paralela multinúcleo. 
+Sin embargo, el núcleo de QEMU puede ir rotando entre procesos (pues QEMU tiene un planificador Round-Robin) dándole un cuanto de ejecución a cada uno hasta que todos terminan su ejecución por completo.  
+Para evaluar si el planificador prioriza ejecutar procesos *CPU bound* (como `cpubench`) o *IO bound* (como `iobench`) podemos ejecutarlo varias veces y analizar cuál proceso obtiene primero la CPU en base al `start_tick`, el cual indica el tick inicial en el que se empezó a ejecutar la instrucción; por ende, aquel proceso con el menor `start_tick` es aquel escogido primero por el planificador. Haremos uso de los experimentos **e** y **f**, pues emplean procesos tanto *CPU bound* como *IO bound* en su ejecución.
 
-Para saber si el scheduler prioriza ejecutar procesos CPUBOUND (como CPUBENCH) o IOBOUND (como IOBENCH) podemos correrlo varias veces y ver mas o menos quien comienza primero.
-Hacemos el caso
-Caso: io+cpu(3)
+---
+**e) Caso: io+cpu(3)**
 ```
 $ iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
 $ 0;[cpubench];9;4261364;[3380];129
@@ -632,10 +653,11 @@ $ 0;[cpubench];25;3983449;[3246];138
 0;[cpubench];23;3739564;[3245];147
 0;[iobench];21;3158;[3248];332
 ```
+Donde `iobench` termina siendo planificado primero **8/10 veces**.
 
-Iobench termina siendo planificado 8/10 veces.
+---
 
-Caso: cpu+io(3)
+**f) Caso: cpu+io(3)**
 ```
 cpubench 1&; iobench 1&; iobench 1&; iobench 1&
 $ 0;[cpubench];21;9317219;[5809];59
@@ -689,39 +711,44 @@ $ 0;[cpubench];29;10571460;[3659];52
 0;[iobench];33;5216;[3660];201
 
 ```
+Donde `cpubench` termina siendo planificado primero **8/10 veces**.
 
-CPUBENCH termina siendo planificado 8/10 veces.
-
-Luego podríamos hipotetizar que el `<programa1>` es elegido por el scheduler en la mayoría de casos de la forma:
+Luego podríamos hipotetizar que el `<programa1>` es elegido por el planificador en la mayoría de casos de la forma:
 ```
 <programa1> &; <programa2> &; <programa3> &; <programa 4> &
 ```
+Es decir, el planificador escogería primero a aquel proceso ubicado al inicio de la línea de ejecución y no haría algún favoritismo en particular por un proceso CPU bound o por uno IO bound.
 
-3. ¿Cambia el rendimiento de los procesos IOBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
+#### 3. ¿Cambia el rendimiento de los procesos IOBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
+Hacemos foco en los experimentos donde intervienen procesos IO-bound: `io`, `io+io(2)` y `io+cpu(3)`.
+![Gráfica de IO, Q=10ms](https://i.imgur.com/jsEhCnv.png)
 
-Viendo los experimentos `io, io(3), io+cpu(3)` en el gráfico ![[Pasted image 20241019212533.png]]
-Podemos notar dos tendencias en los gráficos: 
-* Una para el caso en donde solo intervienen procesos IOBOUND y,
-* otra donde se intercala un proceso IOBOUND junto a otros tres procesos CPUBOUND.
-En el primer caso las cantidades IOPS/Tick y Media de Tiempo Transcurrido (ms) no parecen variar demasiado una respecto a la otra, esto es pues ningun proceso IOBOUND utiliza por completo un cuanto, el CPU siempre esta disponible para cualquier proceso al momento de requerirlo. Esto no agrega overhead pues "tener el CPU siempre que uno lo quiere" es como ejecutarse solo.
+Podemos notar dos tendencias que destacan: 
+* Una para el escenario en donde solo intervienen procesos IO-bound (en `io` e `io+io(2)`), y
+* otra donde se ejecuta un proceso IO-bound junto a otros tres procesos CPU-bound, es decir el caso `io+cpu(3)`.  
+En el primer caso, las métricas de IOPS/tick y el tiempo promedio transcurrido (evaluado en ms) no parecen variar demasiado una respecto de la otra, ya que los procesos IO-bound no utilizan completamente su cuanto. Esto se debe a que la CPU siempre está disponible cuando los procesos lo requieren, lo que minimiza el *overhead* o sobrecarga; tener el CPU siempre disponible es comparable a ejecutarse solo.  
 
-En cambio en el segundo caso donde tenemos un IOBOUND y 3 CPUBOUND, el proceso io devuelve el CPU pero estos procesos CPUBOUND no lo devuelven casi-inmediatamente como sucedia en el caso anterior, sino que utilizan el cuanto dado hacia ellos por completo. Esto aumenta el tiempo en el que el proceso IOBOUND puede realizar un ciclo de medicion pues tiene ahora que esperar a que los demas usen su cuanto, cuando antes no sucedia.
+En el segundo caso, donde coexisten un proceso IO-bound y tres CPU-bound, el proceso IO-bound devuelve el CPU, pero los procesos CPU-bound utilizan su cuanto completo antes de cederlo, a diferencia del comportamiento observado en el primer caso donde lo devolvían casi al instante. Esto incrementa el tiempo que el proceso IO-bound necesita para completar un ciclo de medición, ya que ahora debe esperar a que los otros procesos agoten su cuanto de CPU, lo cual no ocurría anteriormente.
 
+#### 4. ¿Cambia el rendimiento de los procesos CPUBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
+Ahora nos interesa analizar a aquellos experimentos donde intervienen procesos CPU-bound, por lo tanto nos enfocamos en `cpu`, `cpu+cpu(2)` y `cpu+io(3)`. Volvemos a emplear el gráfico expuesto en la consigna anterior:
+![Gráfica de CPU, Q=10ms](https://i.imgur.com/jsEhCnv.png)  
+Veamos en detalle lo que sucede en cada experimento:
+- **1 proceso CPU-bound**: Este proceso utiliza su cuanto de CPU de forma completa, sin interrupciones ni competencia. Cada tick es dedicado exclusivamente a este proceso, lo que maximiza su uso del CPU.
+- **3 procesos CPU-bound**: En este escenario, el CPU alterna entre tres procesos. Aunque cada proceso sigue recibiendo el mismo tiempo de ejecución por cuanto (10 ms), **cada proceso debe esperar más entre uno de sus cuantums y el siguiente**, ya que el CPU está ocupado ejecutando los otros dos procesos. Como resultado, **cada proceso CPU-bound tiene menos oportunidades de ejecutarse en un intervalo de tiempo determinado**, lo que reduce el número de operaciones por tick **desde una perspectiva global**.
+- **1 proceso CPU-bound, 3 procesos I/O-bound**: Cuando se introduce un proceso I/O-bound, este libera el CPU antes de agotar todo su cuanto, lo que **permite que los procesos CPU-bound accedan al CPU con mayor frecuencia**. Por este motivo, el rendimiento en el experimento `cpu+io(3)` es superior al de `cpu(3)`, ya que los procesos CPU-bound obtienen más tiempo de CPU debido a que los procesos I/O-bound no utilizan su cuanto completamente."
 
+#### 5. ¿Es adecuado comparar la cantidad de operaciones de cpu con la cantidad de operaciones iobound?
+Consideramos que no es adecuado comparar directamente estas métricas, ya que en un ciclo de medición:
 
-4. ¿Cambia el rendimiento de los procesos CPUBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
-Debo comparar los experimentos `cpu, cpu(3) y cpu+io(3)`
-- **1 proceso CPUBOUND**: Este proceso utiliza el cuanto entero sin interrupciones y sin competencia. Cada tick está dedicado a este proceso, maximizando su uso del CPU.
-- **3 procesos CPUBOUND**: Ahora el CPU tiene que alternar entre tres procesos. Aunque el tiempo que cada proceso recibe sigue siendo el mismo (10 ms por cuanto), **cada proceso tiene que esperar más tiempo entre un cuanto suyo y el siguiente**, ya que el CPU está ocupado con los otros dos procesos. El resultado es que **cada proceso CPUBOUND tiene menos oportunidades para ejecutarse dentro de un mismo intervalo de tiempo**, lo que reduce el número de operaciones por tick **desde una perspectiva global**.
-- Cuando tengo un proceso **I/O-bound**, este devuelve el CPU antes de usar todo su cuanto, lo que **libera el CPU para los procesos CPUBOUND más rápidamente**. Por eso, el rendimiento en el caso **`cpu+io(3)`** es mejor que en **`cpu(3)`**, ya que el proceso CPUBOUND obtienen más tiempo de CPU porque los procesos I/O-bound no lo necesita completamente.
+- KOPS mide la cantidad de sumas y multiplicaciones en el producto de matrices (observable en la función `cpu_ops_cycle()`), y
+- IOPS mide la cantidad de lecturas y escrituras sobre un archivo temporal (en la función `io_ops()`).
+Estas son operaciones esencialmente diferentes.
+Si bien es posible compararlas conceptualmente en términos de "operaciones" dentro de su respectivo contexto, la comparación solo tiene sentido al observar su relación con el tiempo de ejecución relativo. Más allá de eso, no son equivalentes ni comparables directamente.  
 
-5. ¿Es adecuado comparar la cantidad de operaciones de cpu con la cantidad de operaciones iobound?
-Yo creeria que no, porque en un ciclo de medicion 
-* KOPS mide las sumas y multiplicaciones en el producto de matrices y 
-* IOPS mide la cantidad de lecturas y escrituras sobre 
-y son cosas totalmente distintias. 
+<a name="experimento-2"></a>
+### Experimento 2: ¿Qué sucede cuando cambiamos el largo del quantum?
 
-Si es cierto que las puedo comparar hablando de ambas como "Operaciones (cada una en su contexto)" y verlas respecto a su tiempo relativo. Pero nada mas.
 <a name="tercera-parte"></a>
 ## **Tercera parte: Asignar prioridad a los procesos**
 
