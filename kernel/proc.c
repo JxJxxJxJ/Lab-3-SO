@@ -124,6 +124,12 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  // ----------------------------------------------------------------------
+  // Agrego esto para MLFQ
+  p->priority = NPRIO - 1;     // Comienzo con prioridad max
+  p->has_used_its_quantum = 0; // No use mi cuanto al comenzar el proceso
+  p->times_chosen = 0;         // Y nadie lo eligio, recien aparece
+  // ----------------------------------------------------------------------
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -460,9 +466,28 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        // El scheduler ha elegido el proceso
+        p->times_chosen++;
+        /* 
+          La idea es setear esto de antemano siempre, al hacer swtch y volver
+          si el proceso no lo des-seteo (haciendo sleep) entonces habrá usado
+          el quantum por completo.
+        */ 
+        p->has_used_its_quantum = 1;  
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
+
+        // Adjust the priority based on behavior:
+        if (p->has_used_its_quantum) {
+          p->priority =
+              (p->priority > 0) ? p->priority - 1 : p->priority;
+        }
+        if (!p->has_used_its_quantum) {
+          p->priority =
+              (p->priority < NPRIO - 1) ? p->priority + 1 : p->priority;
+        }
+
         // It should have changed its p->state before coming back.
         c->proc = 0;
       }
@@ -550,6 +575,8 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  p->has_used_its_quantum = 0; // Se fue a dormir antes que el quantum
+                                // se acabase
 
   sched();
 
@@ -677,7 +704,8 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    printf("%d %s %s | Priority:%d | Chosen:%d times",
+           p->pid, state, p->name, p->priority, p->times_chosen);
     printf("\n");
   }
 }
