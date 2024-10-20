@@ -749,6 +749,30 @@ Si bien es posible compararlas conceptualmente en términos de "operaciones" den
 
 <a name="experimento-2"></a>
 ### Experimento 2: ¿Qué sucede cuando cambiamos el largo del quantum?
+En esta sección, deben achicar el largo del quantum primero a 10000 y luego a 1000, y volver a repetir los mismos experimentos. Es posible que necesiten cambiar también sus métricas de medición para que los resultados sean comparables, pero no deberían cambiar los parámetros del experimento (o sea, N, IO_OPSIZE, IO_EXPERIMENT_LEN, etc.) Luego responder:
+
+1. ¿Fue necesario modificar las métricas para que los resultados fueran comparables? ¿Por qué?
+
+Si, costó un poco buscar una métrica que "ande" en el peor y mejor caso en terminos de Operaciones/Tick. Los peores siendo cuando el scheduler tiene un `Q=0.1ms` y los mejores cuando el scheduler tiene un `Q=10ms`. Al haber tantos ticks, el ratio Operaciones/Tick, principalmente en los tests de I/O-Bound se aproximaba mucho a 0 (0,0algo) entonces en los printf se nos llenaba de ceros ya que tenemos que usar uint64 porque no tenemos floats/double (RISCV/XV6) y haciamos division entera.
+
+Para evitar eso usamos algo como 
+`metric = (operaciones * escalado) / ticks`
+con este factor de escalado logramos evitar que se redondee a 0 "haciendo grande todas nuestras mediciones", pero claro debíamos des-escalarlo luego (hecho en excel).
+
+Dicho todo esto, las metricas que usamos para procesos CPUBOUND y IOBOUND son muy distintas, para el CPUBOUND medimos las sumas y multiplicaciones en un ciclo de medicion, en el programa IOBOUND leemos lecturas y escrituras.
+
+2. ¿Qué cambios se observan con respecto al experimento anterior? ¿Qué comportamientos se mantienen iguales?
+`Q=10ms` y `Q=1ms` comparten que para los experimentos en donde analizamos un proceso CPUBOUND si ordenamos desde menor media a mayor media de tiempo en realizar un ciclo de medicion obtenemos. Sea T(x) el tiempo medio en el que x realiza un ciclo de medicion 
+`T(cpu) < T(cpu+io(3)) < T(cpu+cpu(2))`.
+Sin embargo esto deja de cumplirse con `Q=0.1ms`, aqui el orden es 
+`T(cpu) <  T(cpu+cpu(2) < T(cpu+io(3))`.
+Esto puede explicarse pues el nivel de Operaciones/Tick baja exponencialmente al reducir el Quanto del scheduler en potencias de 10. Haciendo que eso, sumado a la gran cantidad de procesos
+
+3. ¿Con un quantumquatum más pequeño, se ven beneficiados los procesos iobound o los procesos cpubound?
+Todos se ven perjudicados casi por igual en terminos de Operaciones/Tick (pues ahora hay muchos mas ticks), ademas al tener un cuanto tan pequeño la cantidad de context switches que hay que hacer sube exponencialmente, esto genera que en nuestras medicas gran parte del tiempo medio por ciclo de medición sea causado por la cantidad abrumadora de context switches. Los procesos CPUBOUND intentaran usar su quantum (aunque pequeño) al máximo, los procesos IOBOUND muchas veces lo desperdiciarán ni siquiera usándolo pero pagando aun el coste del context switch.
+
+
+
 
 <a name="tercera-parte"></a>
 ## **Tercera parte: Asignar prioridad a los procesos**
