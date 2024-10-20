@@ -73,7 +73,7 @@ El planificador recorre todos los procesos del sistema de manera secuencial, des
 
 Esto nos da todos los ingredientes para poder afirmar que la política de planificación que utiliza xv6 es **Round-Robin** (RR), la cual permite a un proceso ejecutarse durante un período determinado de tiempo (time slice), denominado *quantum*, para luego repetir el procedimiento con otro proceso que se encuentre listo para ejecutar. 
 
-El *quantum* por defecto, como cada vez que se genera un timer-interrupt `scheduler()` reanuda su ejecución, puede decirse que es de `~100ms` (que es el intervalo del timer-interrupt por defecto en XV6).
+El *quantum* por defecto, como cada vez que se genera un timer-interrupt `scheduler()` reanuda su ejecución, puede decirse que es de `~10ms` (que es el intervalo del timer-interrupt por defecto en XV6).
 
 
 <a name="preg-2"></a>
@@ -188,7 +188,7 @@ En `kernelvec.S` se va actualizando `MTIMECMP` a un valor cada vez mas alto (`MT
 
 Nota: Sin embargo, esta duración del quantum no es absoluta. El tiempo real puede variar dependiendo de cuanto tarda el procesador en actualizar el registro `MTIME`.
 
-### 3.2 - ¿Por qué el quantum está ligado a estas interrupciones periódicas por hardware?
+### 2 - ¿Por qué el quantum está ligado a estas interrupciones periódicas por hardware?
 
 Estas interrupciones periódicas mediante el hardware (RISC-V) son manejadas a nivel del kernel por `trap.c -> void kerneltrap()` 
 ```c
@@ -534,8 +534,194 @@ timer-interrupt -> kerneltrap() -> yield() -> sched() -> swtch() -> scheduler()
 
 <a name="segunda-parte"></a>
 ## **Segunda parte: Medir operaciones de cómputo y de entrada/salida**
+## Experimento 1: ¿Cómo son planificados los programas iobound y cpubound?
+
+1. Describa los parámetros de los programas cpubench e iobench para este experimento (o sea, los define al principio y el valor de N. Tener en cuenta que podrían cambiar en experimentos futuros, pero que si lo hacen los resultados ya no serán comparables).
+1.1 Decidimos que cada programa realice 30 ciclos de medición (N=30). Para encontrar el N primero vimos cuántos ciclos puede realizar nuestra CPU en un minuto:
+```
+Ncpu = 31 en 1 min (0.1ms)
+Nio = 15 en 1 min (0.1ms)
+
+Ncpu = 31 en 11sec (1ms)
+Nio = 15 en 24sec (1ms)
+
+Ncpu = 31 en 10sec (10ms)
+Nio = 15 en 20sec (10ms)
+```
+Y nos ajustamos al peor caso (el más lento), es decir cuando el scheduler tiene un cuanto `Q=0.1ms`. En este peor caso 
+```
+cpubench 30 tarda ~1 minuto  (0.1ms)
+iobench  30 tarda ~2 minutos (0.1ms)
+```
+Y los demás casos (`Q=1ms`, `Q=0.1ms`) son mas rápidos, pero siguen dándole tiempo al scheduler de hacer context switch reiteradas veces.
+
+1.2 En `user/cpubench.c` no tocamos los parámetros `CPU_MATRIX_SIZE` ni `CPU_EXPERIMENT_LEN`, es decir los dejamos de la siguiente manera:
+	* `#define CPU_MATRIX_SIZE 128`
+	* `#define CPU_EXPERIMENT_LEN 256`
+Y lo mismo hicimos con `user/iobench.c`, tenemos:
+	* `#define IO_OPSIZE 64`
+	* `#define IO_EXPERIMENT_LEN 512`
+	 
+2. ¿Los procesos se ejecutan en paralelo? ¿En promedio, qué proceso o procesos se ejecutan primero? Hacer una **observación cualitativa**.
+
+Al correr QEMU con `CPU=1` estamos limitando a que no haya mas de un core corriendo procesos de XV6 a la vez. Luego, no hay una ejecucion paralela multicore. 
+Sin embargo el core de QEMU puede ir rotando entre procesos (pues QEMU tiene un scheduler Round-Robin) dándole un cuanto de ejecución a cada uno hasta que todos terminan su ejecución por completo.
+
+Para saber si el scheduler prioriza ejecutar procesos CPUBOUND (como CPUBENCH) o IOBOUND (como IOBENCH) podemos correrlo varias veces y ver mas o menos quien comienza primero.
+Hacemos el caso
+Caso: io+cpu(3)
+```
+$ iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];9;4261364;[3380];129
+0;[cpubench];7;4102357;[3379];134
+0;[cpubench];10;4164514;[3381];132
+0;[iobench];5;3382;[3378];310 
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];17;3926542;[6817];140
+0;[cpubench];15;3765177;[6816];146
+0;[cpubench];18;3844167;[6820];143
+0;[iobench];13;3120;[6815];336 
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];23;3983449;[8099];138                     <-- Por que se ejecutan dos procesos en el mismo tick? } 
+0;[cpubench];25;3983449;[8109];138                                                                              }
+0;[cpubench];26;3954791;[8110];139                                                                              } -> los obviamos
+0;[iobench];21;3084;[8099];340                           <-- Por que se ejecutan dos procesos en el mismo tick? } 
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];33;4469235;[10007];123
+0;[cpubench];34;4362825;[10008];126
+0;[cpubench];31;4294656;[10009];128
+0;[iobench];29;3530;[10006];297
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];41;4362825;[10725];126
+0;[cpubench];42;4328472;[10726];127
+0;[cpubench];39;4228584;[10724];130
+0;[iobench];37;3578;[10727];293
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];49;4362825;[12259];126                     <-- Por que se ejecutan dos procesos en el mismo tick? }
+0;[cpubench];50;4294656;[12260];128                                                                              }
+0;[cpubench];47;4164514;[12258];132                                                                              } -> los obviamos
+0;[iobench];45;3518;[12258];298                           <-- Por que se ejecutan dos procesos en el mismo tick? } 
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];57;4469235;[13423];123
+0;[cpubench];55;4261364;[13422];129
+0;[cpubench];58;4469235;[13430];123
+0;[iobench];53;3426;[13421];306
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];17;4362825;[901];126
+0;[cpubench];18;4261364;[902];129
+0;[cpubench];15;4228584;[903];130
+0;[iobench];13;3506;[900];299
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];33;4505868;[2110];122
+0;[cpubench];31;4261364;[2109];129
+0;[cpubench];34;4328472;[2113];127
+0;[iobench];29;3472;[2108];302
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];33;3926542;[4058];140
+0;[cpubench];34;3898694;[4061];141
+0;[cpubench];31;3739564;[4057];147
+0;[iobench];29;3075;[4056];341
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];15;4698427;[1220];117
+0;[cpubench];17;4543107;[1230];121
+0;[cpubench];18;4543107;[1231];121
+0;[iobench];13;3360;[1219];312
+iobench 1&; cpubench 1&; cpubench 1&; cpubench 1&
+$ 0;[cpubench];25;3983449;[3246];138
+0;[cpubench];26;3871239;[3247];142
+0;[cpubench];23;3739564;[3245];147
+0;[iobench];21;3158;[3248];332
+```
+
+Iobench termina siendo planificado 8/10 veces.
+
+Caso: cpu+io(3)
+```
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];21;9317219;[5809];59
+0;[iobench];26;5041;[5812];208
+0;[iobench];23;4702;[5811];223
+0;[iobench];25;4002;[5811];262
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];29;9161932;[7049];60
+0;[iobench];33;5065;[7050];207
+0;[iobench];31;4519;[7050];232
+0;[iobench];34;4599;[7058];228
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];37;9317219;[8219];59
+0;[iobench];42;5729;[8224];183
+0;[iobench];41;4922;[8220];213
+0;[iobench];39;3785;[8220];277
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];45;9317219;[9293];59
+0;[iobench];47;6721;[9294];156
+0;[iobench];50;4578;[9295];229
+0;[iobench];49;4032;[9292];260
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];53;10179925;[11087];54
+0;[iobench];57;6678;[11089];157
+0;[iobench];55;5957;[11089];176
+0;[iobench];58;4161;[11090];252
+$ cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];5;9317219;[323];59
+0;[iobench];9;6678;[326];157
+0;[iobench];10;5295;[327];198
+0;[iobench];7;4405;[326];238
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];5;9477861;[165];58
+0;[iobench];9;5165;[164];203
+0;[iobench];10;4297;[166];244
+0;[iobench];7;4211;[164];249
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];13;8084058;[1726];68
+0;[iobench];15;5518;[1727];190
+0;[iobench];18;4766;[1732];220
+0;[iobench];17;4177;[1727];251
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];21;9011737;[2854];61
+0;[iobench];26;5461;[2857];192
+0;[iobench];25;4766;[2856];220
+0;[iobench];23;4481;[2856];234
+cpubench 1&; iobench 1&; iobench 1&; iobench 1&
+$ 0;[cpubench];29;10571460;[3659];52
+0;[iobench];34;6512;[3662];161
+0;[iobench];31;5295;[3660];198
+0;[iobench];33;5216;[3660];201
+
+```
+
+CPUBENCH termina siendo planificado 8/10 veces.
+
+Luego podríamos hipotetizar que el `<programa1>` es elegido por el scheduler en la mayoría de casos de la forma:
+```
+<programa1> &; <programa2> &; <programa3> &; <programa 4> &
+```
+
+3. ¿Cambia el rendimiento de los procesos IOBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
+
+Viendo los experimentos `io, io(3), io+cpu(3)` en el gráfico ![[Pasted image 20241019212533.png]]
+Podemos notar dos tendencias en los gráficos: 
+* Una para el caso en donde solo intervienen procesos IOBOUND y,
+* otra donde se intercala un proceso IOBOUND junto a otros tres procesos CPUBOUND.
+En el primer caso las cantidades IOPS/Tick y Media de Tiempo Transcurrido (ms) no parecen variar demasiado una respecto a la otra, esto es pues ningun proceso IOBOUND utiliza por completo un cuanto, el CPU siempre esta disponible para cualquier proceso al momento de requerirlo. Esto no agrega overhead pues "tener el CPU siempre que uno lo quiere" es como ejecutarse solo.
+
+En cambio en el segundo caso donde tenemos un IOBOUND y 3 CPUBOUND, el proceso io devuelve el CPU pero estos procesos CPUBOUND no lo devuelven casi-inmediatamente como sucedia en el caso anterior, sino que utilizan el cuanto dado hacia ellos por completo. Esto aumenta el tiempo en el que el proceso IOBOUND puede realizar un ciclo de medicion pues tiene ahora que esperar a que los demas usen su cuanto, cuando antes no sucedia.
 
 
+
+4. ¿Cambia el rendimiento de los procesos CPUBOUND con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
+Debo comparar los experimentos `cpu, cpu(3) y cpu+io(3)`
+- **1 proceso CPUBOUND**: Este proceso utiliza el cuanto entero sin interrupciones y sin competencia. Cada tick está dedicado a este proceso, maximizando su uso del CPU.
+- **3 procesos CPUBOUND**: Ahora el CPU tiene que alternar entre tres procesos. Aunque el tiempo que cada proceso recibe sigue siendo el mismo (10 ms por cuanto), **cada proceso tiene que esperar más tiempo entre un cuanto suyo y el siguiente**, ya que el CPU está ocupado con los otros dos procesos. El resultado es que **cada proceso CPUBOUND tiene menos oportunidades para ejecutarse dentro de un mismo intervalo de tiempo**, lo que reduce el número de operaciones por tick **desde una perspectiva global**.
+- Cuando tengo un proceso **I/O-bound**, este devuelve el CPU antes de usar todo su cuanto, lo que **libera el CPU para los procesos CPUBOUND más rápidamente**. Por eso, el rendimiento en el caso **`cpu+io(3)`** es mejor que en **`cpu(3)`**, ya que el proceso CPUBOUND obtienen más tiempo de CPU porque los procesos I/O-bound no lo necesita completamente.
+
+5. ¿Es adecuado comparar la cantidad de operaciones de cpu con la cantidad de operaciones iobound?
+Yo creeria que no, porque en un ciclo de medicion 
+* KOPS mide las sumas y multiplicaciones en el producto de matrices y 
+* IOPS mide la cantidad de lecturas y escrituras sobre 
+y son cosas totalmente distintias. 
+
+Si es cierto que las puedo comparar hablando de ambas como "Operaciones (cada una en su contexto)" y verlas respecto a su tiempo relativo. Pero nada mas.
 <a name="tercera-parte"></a>
 ## **Tercera parte: Asignar prioridad a los procesos**
 
