@@ -126,9 +126,9 @@ found:
   p->state = USED;
   // ----------------------------------------------------------------------
   // Agrego esto para MLFQ
-  p->priority = NPRIO - 1;     // Comienzo con prioridad max
-  p->has_used_its_quantum = 0; // No use mi cuanto al comenzar el proceso
-  p->times_chosen = 0;         // Y nadie lo eligio, recien aparece
+  p->priority = NPRIO - 1;         // Comienzo con prioridad max
+  p->has_used_its_quantum = false; // No use mi cuanto al comenzar el proceso
+  p->times_chosen = 0;             // Y nadie lo eligio, recien aparece
   // ----------------------------------------------------------------------
 
   // Allocate a trapframe page.
@@ -440,6 +440,68 @@ wait(uint64 addr)
   }
 }
 
+/*
+    -----------------------------------------------
+    Funciones para modularizar partes del scheduler
+*/
+
+/*
+    p->times_chosen es uint, como quiero buscar el minimo el neutro del min
+    es este numero.
+*/
+# define UINT32_MAX 4294967295             // Valor maximo de times_chosen
+# define MIN_PRIORITY 0                    // Prioridad minima
+# define NULL ((void*)0)                   // Para inicializar punteros
+
+/*
+     Busco el proceso de mayor prioridad en la tabla de procesos proc definida
+     mas arriba en este archivo, si dos procesos tienen la misma prioridad
+     elijo al de menor p->times_chosen.
+*/
+struct proc* scheduler_mlfq_find_best_process(void) {
+  uint32 max_priority = MIN_PRIORITY;    // Neutro max, priority va de [0,3)
+  uint32 min_times_chosen = UINT32_MAX;  // Neutro min, p->priority es uint64
+  struct proc *p_mlfq = NULL;
+  struct proc *p = NULL;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == RUNNABLE) {
+      if (p->priority > max_priority){
+        p_mlfq = p;
+        max_priority = p->priority;
+        min_times_chosen = p->times_chosen;
+      }
+      if (p->priority == max_priority){
+        if(p->times_chosen < min_times_chosen){
+          p_mlfq = p;
+          max_priority = p->priority;
+          min_times_chosen = p->times_chosen;
+        }
+      }
+    }
+    release(&p->lock);
+  }
+  return p_mlfq;
+}
+
+void scheduler_mlfq_process_adjust_priority(struct proc* p_mlfq){
+  if (p_mlfq->has_used_its_quantum) {
+    if (p_mlfq->priority > MIN_PRIORITY){ // Para no disminuir mas de 0
+      p_mlfq->priority--;
+    }
+  }
+  if (!p_mlfq->has_used_its_quantum){
+    if (p_mlfq->priority < NPRIO - 1) {
+      p_mlfq->priority++;
+    }
+  }
+}
+
+/*
+    Funciones para modularizar partes del scheduler
+    -----------------------------------------------
+*/
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -450,48 +512,52 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
-  
+
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        // El scheduler ha elegido el proceso
-        p->times_chosen++;
-        /* 
+    /*
+        Busco el proceso de mayor prioridad,
+        si dos procesos tienen la misma prioridad, elijo al de menor
+        p->times_chosen
+    */
+    struct proc* p_mlfq = scheduler_mlfq_find_best_process();
+
+    /*
+        Ejecuto el proceso p_mlfq si es que encontre algun proceso RUNNABLE
+    */
+    if (p_mlfq != NULL){
+      procdump();
+      acquire(&p_mlfq->lock);
+      /*
+          Switch to chosen process.  It is the process's job
+          to release its lock and then reacquire it
+          before jumpping back to us.
+      */
+      p_mlfq->state = RUNNING;
+      c->proc = p_mlfq;
+      p_mlfq->times_chosen++;
+      /*
           La idea es setear esto de antemano siempre, al hacer swtch y volver
           si el proceso no lo des-seteo (haciendo sleep) entonces habrá usado
           el quantum por completo.
-        */ 
-        p->has_used_its_quantum = 1;  
-        swtch(&c->context, &p->context);
+      */
+      p_mlfq->has_used_its_quantum = true;
+      swtch(&c->context, &p_mlfq->context);
+      // Process is done running for now.
 
-        // Process is done running for now.
+      /*
+          Ajusto la prioridad si uso todo el quantum o no,
+          no actualizo en los bordes.
+      */
+      scheduler_mlfq_process_adjust_priority(p_mlfq);
 
-        // Adjust the priority based on behavior:
-        if (p->has_used_its_quantum) {
-          p->priority =
-              (p->priority > 0) ? p->priority - 1 : p->priority;
-        }
-        if (!p->has_used_its_quantum) {
-          p->priority =
-              (p->priority < NPRIO - 1) ? p->priority + 1 : p->priority;
-        }
-
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-      }
-      release(&p->lock);
+      //  It should have changed its p->state before coming back.
+      c->proc = 0;
+      release(&p_mlfq->lock);
     }
   }
 }
@@ -575,8 +641,8 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
-  p->has_used_its_quantum = 0; // Se fue a dormir antes que el quantum
-                                // se acabase
+  p->has_used_its_quantum = false; // Se fue a dormir antes que el quantum
+                                   // se acabase
 
   sched();
 
