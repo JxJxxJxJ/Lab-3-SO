@@ -530,7 +530,7 @@ scheduler(void)
         Ejecuto el proceso p_mlfq si es que encontre algun proceso RUNNABLE
     */
     if (p_mlfq != NULL){
-      procdump();
+      // procdump();
       acquire(&p_mlfq->lock);
       /*
           Switch to chosen process.  It is the process's job
