@@ -484,15 +484,25 @@ struct proc* scheduler_mlfq_find_best_process(void) {
   return p_mlfq;
 }
 
+/*
+    Para la regla 5 del MLFQ, despues de un tiempo S (llamadas al scheduler)
+    Muevo todos los procesos a la maxima prioridad 
+*/
+
+void move_every_process_to_top_queue(void) {
+    for (struct proc *p = proc; p < &proc[NPROC]; p++) {
+        // acquire(&p->lock);
+        if (p->state == RUNNABLE) {
+            p->priority = NPRIO - 1;
+        }
+        // release(&p->lock);
+    }
+}
+
 void scheduler_mlfq_process_adjust_priority(struct proc* p_mlfq){
   if (p_mlfq->has_used_its_quantum) {
-    if (p_mlfq->priority > MIN_PRIORITY){ // Para no disminuir mas de 0
+    if (p_mlfq->priority > MIN_PRIORITY){
       p_mlfq->priority--;
-    }
-  }
-  if (!p_mlfq->has_used_its_quantum){
-    if (p_mlfq->priority < NPRIO - 1) {
-      p_mlfq->priority++;
     }
   }
 }
@@ -509,15 +519,26 @@ void scheduler_mlfq_process_adjust_priority(struct proc* p_mlfq){
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
+# define S 2048                               // Para la regla 5 MLFQ 
+
 void
 scheduler(void)
 {
   struct cpu *c = mycpu();
 
+  /*
+      Veces en las que se volvió al scheduler
+      Utilizado para implementar la regla 5 del MLFQ
+  */
+  uint32 times_scheduler_has_been_called = 0;
+
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
+
+    times_scheduler_has_been_called++;
 
     /*
         Busco el proceso de mayor prioridad,
@@ -530,7 +551,6 @@ scheduler(void)
         Ejecuto el proceso p_mlfq si es que encontre algun proceso RUNNABLE
     */
     if (p_mlfq != NULL){
-      procdump();
       acquire(&p_mlfq->lock);
       /*
           Switch to chosen process.  It is the process's job
@@ -546,14 +566,29 @@ scheduler(void)
           el quantum por completo.
       */
       p_mlfq->has_used_its_quantum = true;
+
       swtch(&c->context, &p_mlfq->context);
       // Process is done running for now.
 
+
       /*
-          Ajusto la prioridad si uso todo el quantum o no,
+          Ajusto la prioridad si uso todo el quantum o no
           no actualizo en los bordes.
       */
-      scheduler_mlfq_process_adjust_priority(p_mlfq);
+      if (times_scheduler_has_been_called >= S) {
+        move_every_process_to_top_queue();
+        times_scheduler_has_been_called = 0;           // Reiniciar el contador
+        // printf("RESETTTTTTTTTTTTTTT\n");               // Para debugear
+        // printf("RESETTTTTTTTTTTTTTT\n");               // Para debugear
+        // printf("RESETTTTTTTTTTTTTTT\n");               // Para debugear
+        // printf("RESETTTTTTTTTTTTTTT\n");               // Para debugear
+        // printf("RESETTTTTTTTTTTTTTT\n");               // Para debugear
+        // printf("RESETTTTTTTTTTTTTTT\n");               // Para debugear
+      }
+
+      if (!(times_scheduler_has_been_called < S)){
+        scheduler_mlfq_process_adjust_priority(p_mlfq);
+      }
 
       //  It should have changed its p->state before coming back.
       c->proc = 0;
