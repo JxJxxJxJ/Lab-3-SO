@@ -1,3 +1,5 @@
+#include "stdbool.h"
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -95,9 +97,9 @@ struct proc {
   int killed;                   // If non-zero, have been killed
   int xstate;                   // Exit status to be returned to parent's wait
   int pid;                      // Process ID
-  uint64 priority;              // Process priority for MLFQ
-  uint64 times_chosen;          // Times the scheduler chose the process
-  uint64 has_used_its_quantum;  // Did it?
+  uint32 priority;              // Process priority for MLFQ
+  uint32 times_chosen;          // Times the scheduler chose the process
+  bool has_used_its_quantum;    // Did it?
 
   // wait_lock must be held when using this:
   struct proc *parent;          // Parent process
