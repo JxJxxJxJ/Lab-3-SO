@@ -8,12 +8,10 @@
 #include "kernel/memlayout.h"
 #include "kernel/riscv.h"
 
-
 #define CPU_MATRIX_SIZE 128
 #define CPU_EXPERIMENT_LEN 256
 
 // #define MEASURE_PERIOD 1000
-
 
 // Multiplica dos matrices de tamaño CPU_MATRIX_SIZE x CPU_MATRIX_SIZE
 // y devuelve la cantidad de operaciones realizadas / 1000
@@ -45,30 +43,33 @@ cpu_ops_cycle()
     }
   }
 
-  return (kops_matmul * CPU_EXPERIMENT_LEN);
+  return (kops_matmul * CPU_EXPERIMENT_LEN); 
+  // ((128)^3 / 1000) * 256 = 536 870.912
 }
 
 void 
 cpubench(int N, int pid) 
 {
   uint64 start_tick, end_tick, elapsed_ticks, total_cpu_kops, metric;
-  int *measurements = malloc(sizeof(int) * N);
+  uint64 scale = 1024;
 
   // Realizar N ciclos de medicion
   for(int i = 0; i < N; ++i) {
-    total_cpu_kops = 0;
     start_tick = uptime();
-
     total_cpu_kops = cpu_ops_cycle();
-
     end_tick = uptime();
+
     elapsed_ticks = end_tick - start_tick;
 
-    // TODO: Cambiar esto por la métrica adecuada
-    metric = total_cpu_kops;
-    measurements[i] = metric;
-    printf("%d\t[cpubench]\tmetric_name_cpu\t%d\t%d\t%d\n",
-           pid, metric, start_tick, elapsed_ticks);
+    // Multiplico por 1024 para que no se me redondeen a 0 las cosas,
+    // mantieniendo el overhead al minimo
+    metric = (total_cpu_kops * scale) / elapsed_ticks; 
+    // En excel puedo escribir la metrica "des-escalada"
+    // metric / scale == total_cpu_kops / elapsed_ticks
+    // hago esto porque el redondeo de division entera me mata si no
+
+    printf("%d;[cpubench];%d;%d;%d;%d\n",
+           i, pid, metric, start_tick, elapsed_ticks);
   }
 }
 

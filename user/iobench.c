@@ -25,21 +25,22 @@ io_ops()
     path[0] = '0' + (pid / 10);
     path[1] = '0' + (pid % 10);
 
+    // <uptime start>
     wfd = open(path, O_CREATE | O_WRONLY);
-
     for(int i = 0; i < IO_EXPERIMENT_LEN; ++i){
       write(wfd, data, IO_OPSIZE);
     }
-
     close(wfd);
+    // <uptime start>
+    // uint64 reading_time =; 
 
     rfd = open(path, O_RDONLY);
-
     for(int i = 0; i < IO_EXPERIMENT_LEN; ++i){
       read(rfd, data, IO_OPSIZE);
     }
 
     close(rfd);
+
     return 2 * IO_EXPERIMENT_LEN;
 }
 
@@ -47,23 +48,24 @@ void
 iobench(int N, int pid)
 {
   memset(data, 'a', sizeof(data));
-  uint64 start_tick, end_tick, elapsed_ticks, metric;
-  int total_iops;
-
-  int *measurements = malloc(sizeof(int) * N);
+  uint64 start_tick, end_tick, elapsed_ticks, metric, total_iops, scale = 1024;
 
   for (int i = 0; i < N; i++){
     start_tick = uptime();
-
-    // Realizar escrituras y lecturas de archivos
     total_iops = io_ops();
-
     end_tick = uptime();
+
     elapsed_ticks = end_tick - start_tick;
-    metric = total_iops;  // Cambiar esto por la métrica adecuada
-    measurements[i] = metric;
-    printf("%d\t[iobench]\tmetric_name_io\t%d\t%d\t%d\n",
-           pid, metric, start_tick, elapsed_ticks);
+
+    // Multiplico por 1024 para que no se me redondeen a 0 las cosas,
+    // mantieniendo el overhead al minimo
+    metric = (total_iops * scale) / elapsed_ticks; 
+    // En excel puedo escribir la metrica "des-escalada"
+    // metric / scale == total_iops / elapsed_ticks
+    // hago esto porque el redondeo de division entera me mata si no
+
+    printf("%d;[iobench];%d;%d;%d;%d\n",
+           i, pid, metric, start_tick, elapsed_ticks);
   }
 }
 
