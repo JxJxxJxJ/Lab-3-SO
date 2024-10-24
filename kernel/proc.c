@@ -383,6 +383,7 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  p->elapsed_ticks = 0;
 
   release(&wait_lock);
 
@@ -532,7 +533,6 @@ scheduler(void)
     if (p_mlfq != NULL){
       //procdump();
       acquire(&p_mlfq->lock);
-      uint64 chosen_at = ticks;
       /*
           Switch to chosen process.  It is the process's job
           to release its lock and then reacquire it
@@ -547,7 +547,16 @@ scheduler(void)
           el quantum por completo.
       */
       p_mlfq->has_used_its_quantum = true;
+      /*
+          Comienzo a contar antes de cambiar de proceso
+          Dejo de contar a contar antes de cambiar de proceso
+          Y guardo el tiempo transcurrido en un campo de la estructura
+          del proceso.
+      */
+      uint64 start_tick = ticks;
       swtch(&c->context, &p_mlfq->context);
+      uint64 end_tick = ticks;
+      p_mlfq->elapsed_ticks = p_mlfq->elapsed_ticks + (end_tick - start_tick);
       // Process is done running for now.
 
       /*
@@ -560,8 +569,6 @@ scheduler(void)
       c->proc = 0;
       release(&p_mlfq->lock);
 
-      uint64 finish_time = ticks;
-      p_mlfq->elapsed_ticks += finish_time - chosen_at;
     }
   }
 }

@@ -72,7 +72,7 @@ cpubench(int N, int pid)
            i, pid, metric, start_tick, elapsed_ticks);
 
     cputime = getcputime();
-    printf("CPUTIME -> %d ms\n", cputime);
+    printf("CPUTIME -> %d ticks (%d ms)\n", cputime, cputime*100);
   }
 }
 

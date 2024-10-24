@@ -95,8 +95,6 @@ sys_getcputime(void)
 {
   uint64  elapsed_ticks;
   struct proc *p = myproc();
-
-  // since one cycle between ticks is 10ms around
-  elapsed_ticks = p->elapsed_ticks * 10;
+  elapsed_ticks = p->elapsed_ticks;
   return elapsed_ticks;
 }

@@ -49,6 +49,7 @@ iobench(int N, int pid)
 {
   memset(data, 'a', sizeof(data));
   uint64 start_tick, end_tick, elapsed_ticks, metric, total_iops, scale = 1024;
+  uint64 cputime;
 
   for (int i = 0; i < N; i++){
     start_tick = uptime();
@@ -66,6 +67,9 @@ iobench(int N, int pid)
 
     printf("%d;[iobench];%d;%d;%d;%d\n",
            i, pid, metric, start_tick, elapsed_ticks);
+
+    cputime = getcputime();
+    printf("IOTIME -> %d ticks (%d ms)\n", cputime, cputime*100);
   }
 }
 
