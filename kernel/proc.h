@@ -100,6 +100,7 @@ struct proc {
   uint32 priority;              // Process priority for MLFQ
   uint32 times_chosen;          // Times the scheduler chose the process
   bool has_used_its_quantum;    // Did it?
+  uint64 elapsed_ticks;         // running time
 
   // wait_lock must be held when using this:
   struct proc *parent;          // Parent process

@@ -15,8 +15,8 @@
 
 // Multiplica dos matrices de tamaño CPU_MATRIX_SIZE x CPU_MATRIX_SIZE
 // y devuelve la cantidad de operaciones realizadas / 1000
-int 
-cpu_ops_cycle() 
+int
+cpu_ops_cycle()
 {
   int kops_matmul = CPU_MATRIX_SIZE * CPU_MATRIX_SIZE * CPU_MATRIX_SIZE / 1000;
   float A[CPU_MATRIX_SIZE][CPU_MATRIX_SIZE];
@@ -43,14 +43,14 @@ cpu_ops_cycle()
     }
   }
 
-  return (kops_matmul * CPU_EXPERIMENT_LEN); 
+  return (kops_matmul * CPU_EXPERIMENT_LEN);
   // ((128)^3 / 1000) * 256 = 536 870.912
 }
 
-void 
-cpubench(int N, int pid) 
+void
+cpubench(int N, int pid)
 {
-  uint64 start_tick, end_tick, elapsed_ticks, total_cpu_kops, metric;
+  uint64 start_tick, end_tick, elapsed_ticks, total_cpu_kops, metric, cputime;
   uint64 scale = 1024;
 
   // Realizar N ciclos de medicion
@@ -63,13 +63,16 @@ cpubench(int N, int pid)
 
     // Multiplico por 1024 para que no se me redondeen a 0 las cosas,
     // mantieniendo el overhead al minimo
-    metric = (total_cpu_kops * scale) / elapsed_ticks; 
+    metric = (total_cpu_kops * scale) / elapsed_ticks;
     // En excel puedo escribir la metrica "des-escalada"
     // metric / scale == total_cpu_kops / elapsed_ticks
     // hago esto porque el redondeo de division entera me mata si no
 
     printf("%d;[cpubench];%d;%d;%d;%d\n",
            i, pid, metric, start_tick, elapsed_ticks);
+
+    cputime = getcputime();
+    printf("CPUTIME -> %d ms\n", cputime);
   }
 }
 
