@@ -454,9 +454,9 @@ wait(uint64 addr)
 # define NULL ((void*)0)                   // Para inicializar punteros
 
 // Defino los quantos en ticks? cuantos ticks?
-# define q0 5
-# define q1 10
-# define q2 20
+# define q0 1000000000000000000
+# define q1 1000000000000000000
+# define q2 1
 
 const long int quantums[NPRIO] = {q0, q1, q2};   // Diferentes quantos
 
@@ -552,7 +552,7 @@ scheduler(void)
           si el proceso no lo des-seteo (haciendo sleep) entonces habrá usado
           el quantum por completo.
       */
-      p_mlfq->has_used_its_quantum = true;
+      p_mlfq->has_used_its_quantum = false;
 
       uint64 start_tick = ticks;
       while (ticks - start_tick < quantums[p_mlfq->priority] && p_mlfq->state == RUNNING){
