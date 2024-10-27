@@ -85,6 +85,7 @@ Los estados en los que puede fluctuar un proceso dentro de XV6 están enumerados
 ```c
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 ```
+
 * **UNUSED**: el proceso no está en uso. Este estado indica que el espacio reservado para el proceso no está asignado a ninguna tarea en este momento.  
 
 * **USED**: el proceso ha sido asignado pero no está listo para ejecutarse. Esto significa que se ha reservado un espacio para el proceso en la *tabla de procesos*.  
@@ -98,6 +99,7 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 * **ZOMBIE**: el proceso terminó de ejecutarse, pero su entrada en la tabla de procesos aún no ha sido limpiada (esperando que el padre llame a `wait()`).    
 
 En cuanto a qué debe pasar para cambiar de un estado a otro:  
+
 * **UNUSED -> USED**: creación de un proceso mediante `allocproc()`.  
 
 * **USED -> RUNNABLE**: proceso listo para ejecutarse mediante `fork()`.  
@@ -115,19 +117,20 @@ En cuanto a qué debe pasar para cambiar de un estado a otro:
 * **ZOMBIE -> UNUSED**: el proceso padre limpia los recursos del proceso hijo finalizado mediante `wait()`.  
 
 Una forma más ilustrativa de poder ver estas transiciones entre estados en XV6 se condensa en el siguiente diagrama de estados:
-![Diagrama de estados de procesos en XV6](https://ucema.edu.ar/u/jmc/siop/U1/xv6_states.png)  
+![Diagrama de estados de XV6](https://ucema.edu.ar/u/jmc/siop/U1/xv6_states.png)
 
 **ACLARACIÓN**: *EMBRYO* es equivalente a *USED* en nuestra definición.
 
 
 <a name="preg-3"></a>
 ### **3. ¿Qué es un *quantum*? ¿Dónde se define en el código? ¿Cuánto dura un *quantum* en `xv6-riscv`?**
-Un **quantum** es el intervalo de tiempo durante el cual un proceso puede ejecutarse en la CPU antes de que el sistema operativo le interrumpa para permitir que otro proceso se ejecute.  
+Un **quantum** o **cuanto** es el intervalo de tiempo durante el cual un proceso puede ejecutarse en la CPU antes de que el sistema operativo le interrumpa para permitir que otro proceso se ejecute.  
 
-En XV6, el quantum esta determinado indirectamente por la frecuencia en la que se realice una timer-interrupt la cual es de `~100ms`.
+En XV6, el cuanto está determinado indirectamente por la frecuencia en la que se realice una interrupción por temporizador la cual es de `~100ms`.
 
-A continuación se explica cómo se generan interrupciones periódicas y por qué decimos que el quantum esta ligado a éstas.
-### 3.1 - ¿Cómo generar interrupciones periódicas?
+A continuación se explica cómo se generan interrupciones periódicas y por qué decimos que el cuanto esta ligado a éstas.
+
+#### 3.1. ¿Cómo generar interrupciones periódicas?
 En el módulo `start.c -> timerinit()` se declaran valores importantes que determinarán el comportamiento de las interrupciones por hardware en XV6:
 ```c
 // arrange to receive timer interrupts.
@@ -172,7 +175,7 @@ int interval = 1000000; // cycles; about 1/10th second in qemu.
 
 Dicha variable especifica la cantidad de ciclos de CPU que deben ocurrir antes de que ocurra una interrupción de temporizador, los cuales son **1.000.000** en XV6. Como remarca el comentario, esto es aproximadamente *0.1 segundos* o *100 milisegundos* en QEMU.  
 
-En `kernelvec.S` se configura el período del timer-interrupt del cual se encargará el hardware (RISC-V) con los valores declarados en `start.c -> timerinit();` (como `interval = 1000000`). Esto se logra manipulando el CLINT.
+En `kernelvec.S` se configura el período del timer interrupt del cual se encargará el hardware (RISC-V) con los valores declarados en `start.c -> timerinit();` (como `interval = 1000000`). Esto se logra manipulando el CLINT.
 ```
 "CLINT stands for Core-Local Interrupt Controller, a hardware component
                 in the RISC-V architecture that provides a simple and efficient mechanism
@@ -181,18 +184,17 @@ En `kernelvec.S` se configura el período del timer-interrupt del cual se encarg
 https://notes.yxy.ninja/Computer-Organisation/Instruction-Set-Architecture-(ISA)/RISCV/RISCV-CLINT
 ```
 
-`MTIME` y `MTIMECMP` son direcciones de memoria especificas a RISC-V donde se almacenan los valores que se usan
-para manejar timer-interrupts. Viven en una estructura llamada CLINT (Core-Local Interrupt Controller).
+`MTIME` y `MTIMECMP` son direcciones de memoria específicas a RISC-V donde se almacenan los valores que se usan para manejar interrupciones por temporizador. Viven en una estructura llamada CLINT (Core-Local Interrupt Controller).
 
 `MTIME` se actualiza por hardware constantemente, y cuando éste supera `MTIMECMP` se genera una interrupción de forma automática.
 
-En `kernelvec.S` se va actualizando `MTIMECMP` a un valor cada vez mas alto (`MTIMECMP_T+1 = MTIMECMP_t + Interval`) para generar interrupciones periódicas con un intervalo `interval`.
+En `kernelvec.S` se va actualizando `MTIMECMP` a un valor cada vez más alto (`MTIMECMP_T+1 = MTIMECMP_t + Interval`) para generar interrupciones periódicas con un intervalo `interval`.
 
-Nota: Sin embargo, esta duración del quantum no es absoluta. El tiempo real puede variar dependiendo de cuanto tarda el procesador en actualizar el registro `MTIME`.
+**Nota:** Sin embargo, esta duración del cuanto no es absoluta. El tiempo real puede variar dependiendo de cuanto tarda el procesador en actualizar el registro `MTIME`.
 
-### 2 - ¿Por qué el quantum está ligado a estas interrupciones periódicas por hardware?
+#### 3.2. ¿Por qué el quantum está ligado a estas interrupciones periódicas por hardware?
 
-Estas interrupciones periódicas mediante el hardware (RISC-V) son manejadas a nivel del kernel por `trap.c -> void kerneltrap()` 
+Estas interrupciones periódicas mediante el hardware (RISC-V) son manejadas a nivel de kernel por `trap.c -> void kerneltrap()` 
 ```c
 // trap.c
 
@@ -254,7 +256,7 @@ devintr()
 
 ```
 
-Cuando `trap.c -> void kerneltrap()` identifica que se ha generado una interrupción por temporizador (es decir, `which_dev` es igual a 2), entra en el siguiente condicional donde el proceso actual "cede" (yields) la CPU:
+Cuando `trap.c -> void kerneltrap()` identifica que se ha generado una interrupción por temporizador (es decir, `which_dev` es igual a 2), entra en el siguiente condicional donde el proceso actual "cede" (*yields*) la CPU:
 ```c
 // trap.c
 
@@ -304,7 +306,7 @@ yield(void)
 
 ```
 
-Luego `sched()` gracias a `swtch()` cambia el contexto del proceso actual al contexto del scheduler (apuntado por `mycpu()->context`). El cual como es ejecutado infinitamente, se logra "volverlo a correr" es decir "avanzar un quanto". 
+Luego `sched()`, gracias a `swtch()`, cambia el contexto del proceso actual al contexto del planificador (apuntado por `mycpu()->context`). El cual como es ejecutado infinitamente, se logra "volverlo a correr", es decir "avanzar un cuanto". 
 ```c
 // proc.c
 
@@ -331,8 +333,9 @@ sched(void)
 
 ```
 
-En definitiva, el scheduler cambia a un nuevo proceso cada vez que se genera un timer-interrupt, lo que, por defecto, ocurre cada `~100ms`. 
-O que es lo mismo, XV6 tiene una planificacion Round-Robin con un quanto de `~100ms`.
+En definitiva, el planificador cambia a un nuevo proceso cada vez que se genera una interrupción por temporizador, lo que, por defecto, ocurre cada `~100ms`. 
+O que es lo mismo, XV6 tiene una planificación Round-Robin con un cuanto de `~100ms`.
+
 <a name="preg-4"></a>
 ### **4. ¿En qué parte del código ocurre el cambio de contexto en `xv6-riscv`? ¿En qué funciones un proceso deja de ser ejecutado? ¿En qué funciones se elige el nuevo proceso a ejecutar?**
 
@@ -387,7 +390,7 @@ swtch:
 
 Nótese que es una función construida en lenguaje ensamblador que se compone de 28 instrucciones, 14 de almacenamiento o guardado (`sd`) correspondiente al contexto viejo (*old context*, como se refiere en el comentario) y otras 14 de carga (`ld`) del nuevo contexto (*new context*).  
 
-En XV6, un proceso deja de ser ejecutado cuando este cede voluntariamente la CPU o cuando es interrumpido por eventos externos (interrupciones de hardware, como un quantum agotado). Tomando como punto de apoyo al diagrama de estados de procesos que expusimos más arriba, ponemos el foco sobre aquellas transiciones donde un programa en ejecución deja de ejecutarse, es decir donde pasa de *RUNNING* hacia otro estado.  
+En XV6, un proceso deja de ser ejecutado cuando este cede voluntariamente la CPU o cuando es interrumpido por eventos externos (interrupciones de hardware, como un cuanto agotado). Tomando como punto de apoyo al diagrama de estados de procesos que expusimos más arriba, ponemos el foco sobre aquellas transiciones donde un programa en ejecución deja de ejecutarse, es decir donde pasa de *RUNNING* hacia otro estado.  
 
 * **RUNNING -> RUNNABLE**: cuando sucede una interrupción por timer el proceso cede el control de la CPU mediante `yield()`. Esta función se encuentra definida en el módulo `proc.c`:
 ```c
@@ -527,9 +530,9 @@ Nótese que `sched()` al ser una función que devuelve el control al planificado
 No. Se podría visualizar la utilización del CPU en XV6 de la siguiente forma: 
 ```
 ... <quantum> <trap> <context_switch> <return_from_trap> <quantum> <trap> <contextswitch> ...
-```` 
+``` 
 
-El tiempo en el que el SO realiza un context switch entonces es un overhead para el sistema, no "le roba tiempo" a la ejecución de ningún proceso. Esto es porque mientras el proceso se ejecuta va pasando el tiempo y no es hasta una eventual time-interrupt desde hardware que se realiza la secuencia explicada en la pregunta *3*:
+El tiempo en el que el SO realiza un cambio de contexto entonces es una sobrecarga (*overhead*) para el sistema, no "le roba tiempo" a la ejecución de ningún proceso. Esto es porque mientras el proceso se ejecuta va pasando el tiempo y no es hasta una eventual interrupción por timer desde hardware que se realiza la secuencia explicada en la pregunta *3*:
 ```
 timer-interrupt -> kerneltrap() -> yield() -> sched() -> swtch() -> scheduler()
 ```
@@ -537,16 +540,22 @@ timer-interrupt -> kerneltrap() -> yield() -> sched() -> swtch() -> scheduler()
 <a name="segunda-parte"></a>
 ## **Segunda parte: Medir operaciones de cómputo y de entrada/salida**
 Nos parece oportuno introducir la **métrica** que empleamos a la hora de las mediciones experimentales. Debido a que la naturaleza de ambas operaciones (CPU e I/O) es diferente y no comparable, establecimos una métrica propia para cada tipo de procesos:
+
 | Instrucción | Métrica | Código |
 | :---: | :---: | :---: |
 | `cpubench` | kilo-operaciones CPU por tick (**kops / ticks**) | `metric = (total_cpu_kops * scale) / elapsed_ticks`, donde `scale=1024` |
-| `iobench` | operaciones I/O por tick (**iops / ticks**)| `metric = (total_iops * scale) / elapsed_ticks`, donde `scale=1024` |  
+| `iobench` | operaciones I/O por tick (**iops / ticks**) | `metric = (total_iops * scale) / elapsed_ticks`, donde `scale=1024` |  
 
-Esta elección permite comparar la carga de trabajo realizada por la CPU y el subsistema de I/O durante un intervalo de cuanto, considerándola razonable para estudiar el rendimiento en ambos casos.  
+Esta elección permite comparar la carga de trabajo realizada por la CPU y el subsistema de I/O durante un intervalo de cuanto, considerándola razonable para estudiar el rendimiento en ambos casos.
+
 Algo que quizás traiga confusión es la variable `scale` que figura en el código de la métrica. Si bien ambas instrucciones se encargan de medir operaciones por ticks, la _cantidad_ de operaciones que realiza cada una es muy diferente.  
+
 `cpubench` trabaja sobre el conteo de operaciones de multiplicación de tres matrices, y las devuelve divididas en 1000 (kops). Esto da un indicio de que siempre se manejan números grandes con esta instrucción, y eso nos agrada de cierta forma.  
+
 No obstante, las cosas se dificultan con `iobench`. La instrucción realiza `IO_EXPERIMENT_LEN` operaciones de lectura y `IO_EXPERIMENT_LEN` operaciones de escritura, es decir `2 * IO_EXPERIMENT_LEN` operaciones en total. En caso de que el valor de la variable sea muy pequeño y `elapsed_ticks` sea mayor a este, si se hiciera `total_iops / elapsed_ticks` resultaría en un valor aproximado a 0 (como 0.00425 por ejemplo) y XV6, al no soportar valores de punto flotante en su estructura, lo redondearía a 0 entero. Es por ello que `scale` resuelve este problema, incrementando notablemente el dividendo para evitar redondeos que no nos permitan llevar a cabo los experimentos de manera adecuada.
+
 Luego incorporamos `scale` a `cpubench` en pos de mantener cierta uniformidad en ambas variables `metric`.  
+
 <a name="experimento-1"></a>
 ### Experimento 1: ¿Cómo son planificados los programas `iobound` y `cpubound`?
 
@@ -587,7 +596,8 @@ Lo mismo hicimos con `user/iobench.c`. Tenemos:
 
 Al correr QEMU con `CPUS=1` estamos limitando a que no haya más de un núcleo ejecutando procesos de XV6 a la vez. Luego, no hay una ejecución paralela multinúcleo. 
 Sin embargo, el núcleo de QEMU puede ir rotando entre procesos (pues QEMU tiene un planificador Round-Robin) dándole un cuanto de ejecución a cada uno hasta que todos terminan su ejecución por completo.  
-Para evaluar si el planificador prioriza ejecutar procesos *CPU-bound* (como `cpubench`) o *I/O-bound* (como `iobench`) podemos ejecutarlo varias veces y analizar cuál proceso obtiene primero la CPU en base al `start_tick`, el cual indica el tick inicial en el que se empezó a ejecutar la instrucción; por ende, aquel proceso con el menor `start_tick` es aquel escogido primero por el planificador. Haremos uso de los experimentos **e** y **f**, pues emplean procesos tanto CPU-bound como IO-bound en su ejecución.
+
+Para evaluar si el planificador prioriza ejecutar procesos *CPU-bound* (como `cpubench`) o *I/O-bound* (como `iobench`) podemos ejecutarlo varias veces y analizar cuál proceso obtiene primero la CPU en base al `start_tick`, el cual indica el tick inicial en el que se empezó a ejecutar la instrucción; por ende, aquel proceso con el menor `start_tick` es aquel escogido primero por el planificador. Haremos uso de los experimentos **e** y **f**, pues emplean procesos tanto CPU-bound como I/O-bound en su ejecución.
 
 ---
 **e) Caso: io+cpu(3)**
@@ -721,22 +731,32 @@ Es decir, el planificador escogería primero a aquel proceso ubicado al inicio d
 
 #### 3. ¿Cambia el rendimiento de los procesos I/O-bound con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
 Hacemos foco en los experimentos donde intervienen procesos I/O-bound: `io`, `io+io(2)` y `io+cpu(3)`.
-![Gráfica de IO, Q=10ms](https://i.imgur.com/jsEhCnv.png)
+
+| Media de IOPS (io) frente a cada experimento | Media de ticks ocurridos frente a cada experimento |
+| :---: | :---: |
+| ![Media de IOPS, Q=10ms](https://i.imgur.com/lYG6Hvx.png) | ![Media de ticks IO, Q=10ms](https://i.imgur.com/I0f7WqV.png) |
 
 Podemos notar dos tendencias que destacan: 
-* Una para el escenario en donde solo intervienen procesos I/O-bound (en `io` e `io+io(2)`), y
-* otra donde se ejecuta un proceso I/O-bound junto a otros tres procesos CPU-bound, es decir el caso `io+cpu(3)`.  
-En el primer caso, las métricas de IOPS/tick y el tiempo promedio transcurrido (evaluado en ms) no parecen variar demasiado una respecto de la otra, ya que los procesos I/O-bound no utilizan completamente su cuanto. Esto se debe a que la CPU siempre está disponible cuando los procesos lo requieren, lo que minimiza el *overhead* o sobrecarga; tener el CPU siempre disponible es comparable a ejecutarse solo.  
+
+* Una para el escenario en donde solo intervienen procesos I/O-bound (en `io` e `io+io(2)`);
+* Otra donde se ejecuta un proceso I/O-bound junto a otros tres procesos CPU-bound, es decir el caso `io+cpu(3)`.  
+
+En el primer caso, las métricas de IOPS/tick y el tiempo promedio transcurrido (evaluado en ticks) no parecen variar demasiado una respecto de la otra, ya que los procesos I/O-bound no utilizan completamente su cuanto. Esto se debe a que la CPU siempre está disponible cuando los procesos lo requieren, lo que minimiza el *overhead* o sobrecarga; tener el CPU siempre disponible es comparable a ejecutarse solo.  
 
 En el segundo caso, donde coexisten un proceso I/O-bound y tres CPU-bound, el proceso I/O-bound devuelve el CPU, pero los procesos CPU-bound utilizan su cuanto completo antes de cederlo, a diferencia del comportamiento observado en el primer caso donde lo devolvían casi al instante. Esto incrementa el tiempo que el proceso I/O-bound necesita para completar un ciclo de medición, ya que ahora debe esperar a que los otros procesos agoten su cuanto de CPU, lo cual no ocurría anteriormente.
 
 #### 4. ¿Cambia el rendimiento de los procesos CPU-bound con respecto a la cantidad y tipo de procesos que se estén ejecutando en paralelo? ¿Por qué?
-Ahora nos interesa analizar a aquellos experimentos donde intervienen procesos CPU-bound, por lo tanto nos enfocamos en `cpu`, `cpu+cpu(2)` y `cpu+io(3)`. Volvemos a emplear el gráfico expuesto en la consigna anterior:
-![Gráfica de CPU, Q=10ms](https://i.imgur.com/jsEhCnv.png)  
+Ahora nos interesa analizar a aquellos experimentos donde intervienen procesos CPU-bound, por lo tanto nos enfocamos en `cpu`, `cpu+cpu(2)` y `cpu+io(3)`:
+
+| Media de KOPS (cpu) frente a cada experimento | Media de ticks ocurridos frente a cada experimento |
+| :---: | :---: |
+| ![Media de KOPS, Q=10ms](https://i.imgur.com/wBCnmY6.png) | ![Media de ticks CPU, Q=10ms](https://i.imgur.com/B08zoje.png) |
+
 Veamos en detalle lo que sucede en cada experimento:
-- **1 proceso CPU-bound**: Este proceso utiliza su cuanto de CPU de forma completa, sin interrupciones ni competencia. Cada tick es dedicado exclusivamente a este proceso, lo que maximiza su uso del CPU.
-- **3 procesos CPU-bound**: En este escenario, el CPU alterna entre tres procesos. Aunque cada proceso sigue recibiendo el mismo tiempo de ejecución por cuanto (10 ms), **cada proceso debe esperar más entre uno de sus cuantums y el siguiente**, ya que el CPU está ocupado ejecutando los otros dos procesos. Como resultado, **cada proceso CPU-bound tiene menos oportunidades de ejecutarse en un intervalo de tiempo determinado**, lo que reduce el número de operaciones por tick **desde una perspectiva global**.
-- **1 proceso CPU-bound, 3 procesos I/O-bound**: Cuando se introduce un proceso I/O-bound, este libera el CPU antes de agotar todo su cuanto, lo que **permite que los procesos CPU-bound accedan al CPU con mayor frecuencia**. Por este motivo, el rendimiento en el experimento `cpu+io(3)` es superior al de `cpu(3)`, ya que los procesos CPU-bound obtienen más tiempo de CPU debido a que los procesos I/O-bound no utilizan su cuanto completamente."
+
+* **1 proceso CPU-bound**: Este proceso utiliza su cuanto de CPU de forma completa, sin interrupciones ni competencia. Cada tick es dedicado exclusivamente a este proceso, lo que maximiza su uso del CPU.
+* **3 procesos CPU-bound**: En este escenario, el CPU alterna entre tres procesos. Aunque cada proceso sigue recibiendo el mismo tiempo de ejecución por cuanto (10 ms), cada proceso debe esperar más entre uno de sus cuantums y el siguiente, ya que el CPU está ocupado ejecutando los otros dos procesos. Como resultado, cada proceso CPU-bound tiene menos oportunidades de ejecutarse en un intervalo de tiempo determinado, lo que reduce el número de operaciones por tick desde una perspectiva global.
+* **1 proceso CPU-bound, 3 procesos I/O-bound**: Cuando se introduce un proceso I/O-bound, este libera el CPU antes de agotar todo su cuanto, lo que permite que los procesos CPU-bound accedan al CPU con mayor frecuencia. Por este motivo, el rendimiento en el experimento `cpu+io(3)` es superior al de `cpu(3)`, ya que los procesos CPU-bound obtienen más tiempo de CPU debido a que los procesos I/O-bound no utilizan su cuanto completamente.
 
 #### 5. ¿Es adecuado comparar la cantidad de operaciones de CPU con la cantidad de operaciones I/O-bound?
 Consideramos que no es adecuado comparar directamente estas métricas, ya que en un ciclo de medición:
@@ -749,34 +769,74 @@ Si bien es posible compararlas conceptualmente en términos de "operaciones" den
 
 <a name="experimento-2"></a>
 ### Experimento 2: ¿Qué sucede cuando cambiamos el largo del quantum?
-En esta sección, deben achicar el largo del quantum primero a 10000 y luego a 1000, y volver a repetir los mismos experimentos. Es posible que necesiten cambiar también sus métricas de medición para que los resultados sean comparables, pero no deberían cambiar los parámetros del experimento (o sea, N, IO_OPSIZE, IO_EXPERIMENT_LEN, etc.) Luego responder:
 
-1. ¿Fue necesario modificar las métricas para que los resultados fueran comparables? ¿Por qué?
+#### 1. ¿Fue necesario modificar las métricas para que los resultados fueran comparables? ¿Por qué?  
+Desde el comienzo la prioridad fue hallar una métrica que se ajuste a los distintos experimentos. El criterio primigenio que se elaboró fue uno que analizaba la cantidad de operaciones por tick, y estaba definido como:
+```c
+metric = total_kops / elapsed_ticks; // contabiliza las operaciones CPU-bound
+metric = total_iops / elapsed_ticks; // contabiliza las operaciones I/O-bound
+```
+Si bien no tenía problema alguno con las operaciones de `cpubench` (por la gran cantidad de las mismas) sí lo generaba con las operaciones `iobench`. [Como ya se explicó previamente](#segunda-parte), debido a la gran cantidad de ticks en los tests I/O-bound, el ratio de operaciones/tick se aproximaba a valores cercanos a 0 (pues la cantidad de instrucciones del numerador era inferior a la cantidad de ticks en la ejecución contabilizado en el denominador), lo que imprimía una salida llena de ceros para `iops/tick`. Esto es por la limitación de tener que trabajar con valores de tipo `uint64` en XV6 debido a la ausencia de tipos `double` o `float` en su estructura, empujándonos a tener que movernos entre divisiones enteras. 
 
-Si, costó un poco buscar una métrica que "ande" en el peor y mejor caso en terminos de Operaciones/Tick. Los peores siendo cuando el scheduler tiene un `Q=0.1ms` y los mejores cuando el scheduler tiene un `Q=10ms`. Al haber tantos ticks, el ratio Operaciones/Tick, principalmente en los tests de I/O-Bound se aproximaba mucho a 0 (0,0algo) entonces en los printf se nos llenaba de ceros ya que tenemos que usar uint64 porque no tenemos floats/double (RISCV/XV6) y haciamos division entera.
+Para evitar este inconveniente, incorporamos una variable `scale` que amplifica la cantidad de operaciones en las mediciones. Posteriormente *desescalamos* los datos manualmente en las hojas de cálculo, para así obtener las `kops/tick` y las `iops/tick` de los procesos `cpubench` e `iobench` respectivamente.
 
-Para evitar eso usamos algo como 
-`metric = (operaciones * escalado) / ticks`
-con este factor de escalado logramos evitar que se redondee a 0 "haciendo grande todas nuestras mediciones", pero claro debíamos des-escalarlo luego (hecho en excel).
+#### 2. ¿Qué cambios se observan con respecto al experimento anterior? ¿Qué comportamientos se mantienen iguales?
+Se llevaron a cabo los seis experimentos previos sobre diferentes cuantos en XV6. Tomaremos como muestra aquellos datos obtenidos por un procesador **11th Gen Intel(R) Core(TM) i7-1165G7**, los cuales fueron plasmados en una hoja de cálculo de Google Sheets (si se desea ver el espacio de trabajo ingrese [aquí](https://docs.google.com/spreadsheets/d/1JNGoDfsYe019ozLIFg6F-UHQfh_fU4ePKNBiQvK92Hg/edit?gid=677797133#gid=677797133)).    
 
-Dicho todo esto, las metricas que usamos para procesos CPUBOUND y IOBOUND son muy distintas, para el CPUBOUND medimos las sumas y multiplicaciones en un ciclo de medicion, en el programa IOBOUND leemos lecturas y escrituras.
+Analizaremos por separado a aquellos experimentos donde se utilizan operaciones `cpubench` de aquellos con `iobench` debido a la discordancia de ambas métricas que se manifestó previamente. En el caso de experimentos mixtos tomaremos como objeto de observación al proceso que es minoría (por ejemplo, en el caso `cpu+io(3)` se analizará cómo se comportó ese único proceso `cpubench` que se ejecutó en un contexto de compartición de CPU con una mayoría de procesos I/O-bound).  
 
-2. ¿Qué cambios se observan con respecto al experimento anterior? ¿Qué comportamientos se mantienen iguales?
-`Q=10ms` y `Q=1ms` comparten que para los experimentos en donde analizamos un proceso CPUBOUND si ordenamos desde menor media a mayor media de tiempo en realizar un ciclo de medicion obtenemos. Sea T(x) el tiempo medio en el que x realiza un ciclo de medicion 
-`T(cpu) < T(cpu+io(3)) < T(cpu+cpu(2))`.
-Sin embargo esto deja de cumplirse con `Q=0.1ms`, aqui el orden es 
-`T(cpu) <  T(cpu+cpu(2) < T(cpu+io(3))`.
-Esto puede explicarse pues el nivel de Operaciones/Tick baja exponencialmente al reducir el Quanto del scheduler en potencias de 10. Haciendo que eso, sumado a la gran cantidad de procesos
+En cuanto a kilo-operaciones por tick en los procesos `cpubench`, y operaciones por tick (a secas) para los procesos `iobench` logró obtenerse la siguiente información:
 
-3. ¿Con un quantumquatum más pequeño, se ven beneficiados los procesos iobound o los procesos cpubound?
-Todos se ven perjudicados casi por igual en terminos de Operaciones/Tick (pues ahora hay muchos mas ticks), ademas al tener un cuanto tan pequeño la cantidad de context switches que hay que hacer sube exponencialmente, esto genera que en nuestras medicas gran parte del tiempo medio por ciclo de medición sea causado por la cantidad abrumadora de context switches. Los procesos CPUBOUND intentaran usar su quantum (aunque pequeño) al máximo, los procesos IOBOUND muchas veces lo desperdiciarán ni siquiera usándolo pero pagando aun el coste del context switch.
+| Experimentos `cpubench` | Experimentos `iobench` |
+| :---: | :---: |
+| ![Gráfica de CPU, Qs distintos](https://i.imgur.com/tnOBMbW.png) | ![Gráfica de IO, Qs distintos](https://i.imgur.com/9qW7k5B.png) |
 
+Nótese que todos los experimentos, tanto los CPU-bound como los I/O-bound, muestran una caída significativa en sus operaciones a medida que se reduce el cuanto. De hecho, pareciera tener una tendencia a caer exponencialmente al ir particionando por 10 dicho cuanto, dando a la gráfica una forma decreciente si nos enfocamos solamente en cada experimento de manera particular.  
 
+Esto se debe a que, al reducir el cuanto del planificador, este realiza muchos más cambios de contexto, interrumpiendo al proceso más frecuentemente y por lo tanto reduciendo la cantidad de operaciones que puede realizar por tick. En resumen, un cuanto más grande como el inicial (100.000) promueve un mejor rendimiento ya que los procesos en general tienen más tiempo de realizar operaciones sin ser interrumpidos; por otro lado un cuanto más pequeño introduce muchos más cambios de contexto en la ecuación, dejando poco tiempo efectivo para que las operaciones se lleven a cabo.  
+
+Analicemos más en detalle cómo se comportan las operaciones CPU-bound a medida que se diezma el cuanto:
+
+| Cuanto = 100.000 | Cuanto = 10.000 | Cuanto = 1.000 |
+| :---: | :---: | :---: |
+| ![Gráfica de CPU, Q=100000](https://i.imgur.com/F6OQmUD.png) | ![Gráfica de CPU, Q=10000](https://i.imgur.com/xdPTYVw.png) | ![Gráfica de CPU, Q=1000](https://i.imgur.com/XfJTfCb.png) |
+
+A partir de ahora nos referiremos a los cuantos con la letra **Q** a modo de agilizar el análisis. Cuando Q = 100.000 y Q = 10.000 la gráfica presenta cierta forma de U.  
+
+* `cpu`: corresponde al mejor rendimiento pues solo un proceso CPU se ejecuta, teniendo acceso directo a la CPU hasta que finalice su cuanto.
+* `cpu+cpu(2)`: tres procesos CPU ejecutándose simultáneamente indican que existe cierta competencia por la CPU entre ellos, lo que explica la baja de rendimiento comparado a `cpu`.
+* `cpu+io(3)`: dado que los procesos I/O-bound tienden a ceder la CPU mientras esperan operaciones de entrada/salida, cpubench tiene más oportunidades de utilizar la CPU comparado a `cpu+cpu(2)`, donde todos los procesos eran CPU-bound y competían por la CPU. Es razonable pensar en una mejora de rendimiento comparado con el segundo experimento, pero un poco peor que `cpu`.  
+
+No obstante, esa forma de U muta hacia una gráfica decreciente cuando Q = 1000. Esto se debe a la excesiva cantidad de cambios de contexto, impactando negativamente en todos los experimentos. Si a eso se le suma también la competencia por la CPU que se realiza cuando se ejecutan varios progresos en simultáneo, solo llevan a que el rendimiento caiga en picada.  
+
+Por otro lado, la reducción del cuanto afecta a las operaciones I/O-bound de la siguiente manera:
+
+| Cuanto = 100.000 | Cuanto = 10.000 | Cuanto = 1.000 |
+| :---: | :---: | :---: |
+| ![Gráfica de IO, Q=100000](https://i.imgur.com/rHWYi95.png) | ![Gráfica de IO, Q=10000](https://i.imgur.com/niMf7L9.png) | ![Gráfica de IO, Q=1000](https://i.imgur.com/XAKY0UU.png) |  
+
+Puede observarse que cuando Q = 100000, la gráfica presenta cierta forma de U invertida.  
+
+* `io`: un solo proceso I/O-bound en ejecución, el cual se encuentra limitado por su naturaleza de pasar tiempo en espera de operaciones I/O. 
+* `io+io(2)`: como la naturaleza de los procesos I/O-bound corresponde a liberar la CPU mientras esperan, permite que los otros procesos aprovechen el tiempo de CPU disponible. Esta conducta "generosa" en un contexto de compartición de la CPU aumenta el rendimiento en comparación con `io`.
+* `io+cpu(3)`: la naturaleza "vil" de los procesos CPU-bound es acaparar el mayor tiempo de CPU para ellos, reduciendo el tiempo disponible para `iobench`. Esto explica porque es el peor rendimiento de los tres experimentos.  
+
+Sin embargo, cuando Q = 10000 y Q = 1000 la gráfica tiende a tornarse decreciente. Nuevamente los cada vez más frecuentes cambios de contexto sumado a la competencia por la CPU conforman un escenario en donde el rendimiento se va desmejorando exponencialmente.  
+
+Otra gráfica que nos parece prudente presentar es la cantidad de ticks ocurridos en cada experimento a medida que el cuanto varía:
+
+![Gráfica de ticks](https://i.imgur.com/gcfh6wW.png)
+
+Un patrón que se repite a lo largo de todos los experimentos es el aumento exponencial de ticks a medida que el cuanto se va diezmando. Un cuanto más pequeño genera un mayor número de ticks debido al incremento de los cambios de contexto e interrupciones, incrementando el tiempo que tardan los procesos en poder completarse.  
+
+Tanto los procesos CPU-bound como los I/O-bound se ven notablemente afectados, sin embargo pareciera que los CPU-bound son más sensibles a estos numerosos cambios de contexto, principalmente en experimentos donde se ejecutan varios de ellos en simultáneo. Como los procesos I/O-bound tienden a liberar la CPU más rápidamente, generan una cantidad de ticks menor en general (aunque no son la excepción a la baja de rendimiento en un planificador con un cuanto pequeño).
+
+#### 3. ¿Con un quantum más pequeño, se ven beneficiados los procesos I/O-bound o los procesos CPU-bound?
+Todos los procesos se ven perjudicados de manera similar en términos de operaciones/tick, debido a que la cantidad de ticks aumenta significativamente. Además, al tener un cuanto tan pequeño, el número de cambios de contexto incrementa exponencialmente, lo que provoca que en nuestras mediciones una gran cantidad de ticks ocurridos sea consecuencia del elevado número de cambios de contexto. Los procesos CPU-bound intentan aprovechar al máximo su cuanto, aunque sea reducido, mientras que los procesos I/O-bound frecuentemente no lo utilizan por completo, pero aún incurren en el costo asociado al cambio de contexto.
 
 
 <a name="tercera-parte"></a>
 ## **Tercera parte: Asignar prioridad a los procesos**
-
 
 <a name="cuarta-parte"></a>
 ## **Cuarta parte: Implementar MLFQ**
