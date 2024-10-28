@@ -533,10 +533,17 @@ scheduler(void)
 
     // Si no habia ningun proceso RUNNABLE, habilito las interrupciones
     // tengo que ver como como el procesador en idle
+    //...
+    /*
+      Similar instructions are WFI (Wait For Interrupt).
+      In some cases, it might be useful for the operating system to turn off the CPUs to conserve power, heating, and batter life (if applicable).
+      Therefore, instruction set architectures (ISA) such as RISC-V come equipped with the wfi (wait-for-interrupt) instruction.
+    */
+
     if (p_mlfq == NULL){
       intr_on();
+      asm volatile("wfi");
     }
-
 
     /*
         Ejecuto el proceso p_mlfq si es que encontre algun proceso RUNNABLE
