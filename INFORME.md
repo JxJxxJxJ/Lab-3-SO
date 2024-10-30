@@ -8,16 +8,17 @@ Los **integrantes** que trabajaron en conjunto durante este proyecto son:
 
 ## **Índice**
  1. [Primera parte: Estudiando el planificador de xv6-riscv](#primera-parte)
-    * [Pregunta 1](#preg-1)
-    * [Pregunta 2](#preg-2)  
-    * [Pregunta 3](#preg-3)
-    * [Pregunta 4](#preg-4)
-    * [Pregunta 5](#preg-5)
+    * [¿Qué política de planificación utiliza xv6-riscv para elegir el próximo proceso a ejecutarse?](#preg-1)
+    * [¿Cuáles son los estados en los que un proceso puede permanecer en xv6-riscv y qué los hace
+cambiar de estado?](#preg-2)  
+    * [¿Qué es un quantum? ¿Dónde se define en el código? ¿Cuánto dura un quantum en xv6-riscv?](#preg-3)
+    * [¿En qué parte del código ocurre el cambio de contexto en xv6-riscv? ¿En qué funciones un
+proceso deja de ser ejecutado? ¿En qué funciones se elige el nuevo proceso a ejecutar?](#preg-4)
+    * [¿El cambio de contexto consume tiempo de un quantum?](#preg-5)
  2. [Segunda parte: Medir operaciones de cómputo y de entrada/salida](#segunda-parte)
-    * [Experimento 1](#experimento-1)
-    * [Experimento 2](#experimento-2)
- 3. [Tercera parte: Asignar prioridad a los procesos](#tercera-parte)
- 4. [Cuarta parte: Implementar MLFQ](#cuarta-parte)
+    * [Experimento 1: ¿Cómo son planificados los programas iobound y cpubound?](#experimento-1)
+    * [Experimento 2: ¿Qué sucede cuando cambiamos el largo del quantum?](#experimento-2)
+ 3. [Tercera parte: Implementación de MLFQ. MLFQ vs. RR](#tercera-parte)
 
 <a name="primera-parte"></a>
 ## **Primera parte: Estudiando el planificador de xv6-riscv**
@@ -71,11 +72,11 @@ scheduler(void)
 ```
 Este es el planificador de XV6 (no muy difícil de deducir tras leer el comentario por encima de la función). Analicemos un poco el código:  
 
-El planificador recorre todos los procesos del sistema de manera secuencial, desde `proc[0]` hasta `proc[NPROC - 1]`, buscando a alguno que esté listo para ejecutarse (`RUNNABLE`). Una vez lo encuentra, cambia su estado a `RUNNING` (es decir, lo ejecuta) y realiza el debido cambio de contexto con la función `swtch()`. Una vez que el proceso termina su ejecución o cede el control nuevamente a la CPU, el planificador continúa con el siguiente en la lista. Previo a ello, se comenta que el planificador habilita las interrupciones para permitir que dispositivos, como el temporizador, puedan interrumpir al proceso en ejecución y devolver el control a la CPU. 
+El planificador recorre todos los procesos del sistema de manera secuencial, desde `proc[0]` hasta `proc[NPROC - 1]`, buscando a alguno que esté listo para ejecutarse (`RUNNABLE`). Una vez lo encuentra, cambia su estado a `RUNNING` (es decir, lo ejecuta) y realiza el debido cambio de contexto con la función `swtch()`. Una vez que el proceso termina su ejecución o cede el control nuevamente a la CPU, el planificador continúa con el siguiente en la lista. Previo a ello, se comenta que el planificador habilita las interrupciones para permitir que dispositivos, como el timer, puedan interrumpir al proceso en ejecución y devolver el control a la CPU. 
 
-Esto nos da todos los ingredientes para poder afirmar que la política de planificación que utiliza XV6 es **Round-Robin** (RR), la cual permite a un proceso ejecutarse durante un período determinado de tiempo (time slice), denominado *quantum*, para luego repetir el procedimiento con otro proceso que se encuentre listo para ejecutar. 
+Esto nos da todos los ingredientes para poder afirmar que la política de planificación que utiliza XV6 es **Round-Robin** (RR), la cual permite a un proceso ejecutarse durante un período determinado de tiempo (time slice), denominado ***quantum*** o ***cuanto***, para luego repetir el procedimiento con otro proceso que se encuentre listo para ejecutar. 
 
-El *quantum* por defecto, como cada vez que se genera un timer-interrupt `scheduler()` reanuda su ejecución, puede decirse que es de `~10ms` (que es el intervalo del timer-interrupt por defecto en XV6).
+El cuanto por defecto, como cada vez que se genera una interrupción por timer `scheduler()` reanuda su ejecución, puede decirse que es de `~10ms` (que es el intervalo de la interrupción por timer por defecto en XV6).
 
 
 <a name="preg-2"></a>
@@ -126,7 +127,7 @@ Una forma más ilustrativa de poder ver estas transiciones entre estados en XV6 
 ### **3. ¿Qué es un *quantum*? ¿Dónde se define en el código? ¿Cuánto dura un *quantum* en `xv6-riscv`?**
 Un **quantum** o **cuanto** es el intervalo de tiempo durante el cual un proceso puede ejecutarse en la CPU antes de que el sistema operativo le interrumpa para permitir que otro proceso se ejecute.  
 
-En XV6, el cuanto está determinado indirectamente por la frecuencia en la que se realice una interrupción por temporizador la cual es de `~100ms`.
+En XV6, el cuanto está determinado indirectamente por la frecuencia en la que se realice una interrupción por timer la cual es de `~100ms`.
 
 A continuación se explica cómo se generan interrupciones periódicas y por qué decimos que el cuanto esta ligado a éstas.
 
@@ -173,9 +174,9 @@ En particular nos llama poderosamente la atención la línea donde se define la 
 int interval = 1000000; // cycles; about 1/10th second in qemu.
 ``` 
 
-Dicha variable especifica la cantidad de ciclos de CPU que deben ocurrir antes de que ocurra una interrupción de temporizador, los cuales son **1.000.000** en XV6. Como remarca el comentario, esto es aproximadamente *0.1 segundos* o *100 milisegundos* en QEMU.  
+Dicha variable especifica la cantidad de ciclos de CPU que deben ocurrir antes de que ocurra una interrupción por timer, los cuales son **1.000.000** en XV6. Como remarca el comentario, esto es aproximadamente *0.1 segundos* o *100 milisegundos* en QEMU.  
 
-En `kernelvec.S` se configura el período del timer interrupt del cual se encargará el hardware (RISC-V) con los valores declarados en `start.c -> timerinit();` (como `interval = 1000000`). Esto se logra manipulando el CLINT.
+En `kernelvec.S` se configura el período de la interrupción por timer del cual se encargará el hardware (RISC-V) con los valores declarados en `start.c -> timerinit();` (como `interval = 1000000`). Esto se logra manipulando el CLINT.
 ```
 "CLINT stands for Core-Local Interrupt Controller, a hardware component
                 in the RISC-V architecture that provides a simple and efficient mechanism
@@ -184,7 +185,7 @@ En `kernelvec.S` se configura el período del timer interrupt del cual se encarg
 https://notes.yxy.ninja/Computer-Organisation/Instruction-Set-Architecture-(ISA)/RISCV/RISCV-CLINT
 ```
 
-`MTIME` y `MTIMECMP` son direcciones de memoria específicas a RISC-V donde se almacenan los valores que se usan para manejar interrupciones por temporizador. Viven en una estructura llamada CLINT (Core-Local Interrupt Controller).
+`MTIME` y `MTIMECMP` son direcciones de memoria específicas a RISC-V donde se almacenan los valores que se usan para manejar interrupciones por timer. Viven en una estructura llamada CLINT (Core-Local Interrupt Controller).
 
 `MTIME` se actualiza por hardware constantemente, y cuando éste supera `MTIMECMP` se genera una interrupción de forma automática.
 
@@ -235,7 +236,7 @@ kerneltrap()
 
 ```
 
-La función `devintr()` se encarga de identificar el tipo de interrupción y devuelve 2 cuando se trata de una interrupción por temporizador:
+La función `devintr()` se encarga de identificar el tipo de interrupción y devuelve 2 cuando se trata de una interrupción por timer:
 ```c
 // proc.c
 
@@ -256,7 +257,7 @@ devintr()
 
 ```
 
-Cuando `trap.c -> void kerneltrap()` identifica que se ha generado una interrupción por temporizador (es decir, `which_dev` es igual a 2), entra en el siguiente condicional donde el proceso actual "cede" (*yields*) la CPU:
+Cuando `trap.c -> void kerneltrap()` identifica que se ha generado una interrupción por timer (es decir, `which_dev` es igual a 2), entra en el siguiente condicional donde el proceso actual "cede" (*yields*) la CPU:
 ```c
 // trap.c
 
@@ -333,7 +334,7 @@ sched(void)
 
 ```
 
-En definitiva, el planificador cambia a un nuevo proceso cada vez que se genera una interrupción por temporizador, lo que, por defecto, ocurre cada `~100ms`. 
+En definitiva, el planificador cambia a un nuevo proceso cada vez que se genera una interrupción por timer, lo que, por defecto, ocurre cada `~100ms`. 
 O que es lo mismo, XV6 tiene una planificación Round-Robin con un cuanto de `~100ms`.
 
 <a name="preg-4"></a>
@@ -406,7 +407,7 @@ yield(void)
 }
 ```  
 
-* **RUNNING -> SLEEPING**: si un proceso está esperando algún evento o recurso, se pone en estado SLEEPING, mediante `sleep()`, y deja de ser ejecutado. Dicha función también se aloja en el módulo `proc.c`:
+* **RUNNING -> SLEEPING**: si un proceso está esperando algún evento o recurso, se pone en estado `SLEEPING`, mediante `sleep()`, y deja de ser ejecutado. Dicha función también se aloja en el módulo `proc.c`:
 ```c
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
@@ -440,7 +441,7 @@ sleep(void *chan, struct spinlock *lk)
 }
 ```  
 
-* **RUNNING -> ZOMBIE**: cuando un proceso termina su ejecución ya sea de manera voluntaria o forzada se cambia su estado a ZOMBIE, mediante `exit()`, y deja de ser ejecutado. Nuevamente, la función acompaña a las demás en el módulo `proc.c`:
+* **RUNNING -> ZOMBIE**: cuando un proceso termina su ejecución ya sea de manera voluntaria o forzada se cambia su estado a `ZOMBIE`, mediante `exit()`, y deja de ser ejecutado. Nuevamente, la función acompaña a las demás en el módulo `proc.c`:
 ```c
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
@@ -490,7 +491,7 @@ exit(int status)
 
 En cuanto a las funciones que participan en la elección del próximo proceso a ejecutar en XV6, son dos: `scheduler()` y  `sched()`.  
 
-Hemos desarrollado a `scheduler()` en preguntas anteriores, pero haremos una descripción corta de la función. Básicamente es el planificador de XV6, el cual recorre toda la tabla de procesos buscando alguno con estado *RUNNABLE* y lo ejecuta, dando el control al proceso mediante un cambio de contexto.  
+Hemos desarrollado a `scheduler()` en preguntas anteriores, pero haremos una descripción corta de la función. Básicamente es el planificador de XV6, el cual recorre toda la tabla de procesos buscando alguno con estado ``RUNNABLE` y lo ejecuta, dando el control al proceso mediante un cambio de contexto.  
 
 Por otro lado, `sched()` se encarga de ceder el control nuevamente al planificador (también mediante un cambio de contexto), que luego elegirá otro proceso para ejecutar. El código es el siguiente (ubicado también en el módulo `proc.c`):
 ```c
@@ -522,7 +523,7 @@ sched(void)
 }
 ```
 
-Nótese que `sched()` al ser una función que devuelve el control al planificador, puede suponerse que es utilizada cuando algún proceso termina su ejecución o es interrumpido. Por lo tanto, sería empleada en las transiciones de *RUNNING* hacia otros estados. Efectivamente sucede esto, siendo empleada en las funciones previamente señaladas: `yield()`, `sleep()` y `exit()`.
+Nótese que `sched()` al ser una función que devuelve el control al planificador, puede suponerse que es utilizada cuando algún proceso termina su ejecución o es interrumpido. Por lo tanto, sería empleada en las transiciones de `RUNNING` hacia otros estados. Efectivamente sucede esto, siendo empleada en las funciones previamente señaladas: `yield()`, `sleep()` y `exit()`.
 
 <a name="preg-5"></a>
 ### **5. ¿El cambio de contexto consume tiempo de un *quantum*?**
@@ -532,7 +533,7 @@ No. Se podría visualizar la utilización del CPU en XV6 de la siguiente forma:
 ... <quantum> <trap> <context_switch> <return_from_trap> <quantum> <trap> <contextswitch> ...
 ``` 
 
-El tiempo en el que el SO realiza un cambio de contexto entonces es una sobrecarga (*overhead*) para el sistema, no "le roba tiempo" a la ejecución de ningún proceso. Esto es porque mientras el proceso se ejecuta va pasando el tiempo y no es hasta una eventual interrupción por timer desde hardware que se realiza la secuencia explicada en la pregunta *3*:
+El tiempo en el que el SO realiza un cambio de contexto entonces es una sobrecarga (*overhead*) para el sistema, no "le roba tiempo" a la ejecución de ningún proceso. Esto es porque mientras el proceso se ejecuta va pasando el tiempo y no es hasta una eventual interrupción por timer desde hardware que se realiza la secuencia explicada en la pregunta 3:
 ```
 timer-interrupt -> kerneltrap() -> yield() -> sched() -> swtch() -> scheduler()
 ```
@@ -555,6 +556,15 @@ Algo que quizás traiga confusión es la variable `scale` que figura en el códi
 No obstante, las cosas se dificultan con `iobench`. La instrucción realiza `IO_EXPERIMENT_LEN` operaciones de lectura y `IO_EXPERIMENT_LEN` operaciones de escritura, es decir `2 * IO_EXPERIMENT_LEN` operaciones en total. En caso de que el valor de la variable sea muy pequeño y `elapsed_ticks` sea mayor a este, si se hiciera `total_iops / elapsed_ticks` resultaría en un valor aproximado a 0 (como 0.00425 por ejemplo) y XV6, al no soportar valores de punto flotante en su estructura, lo redondearía a 0 entero. Es por ello que `scale` resuelve este problema, incrementando notablemente el dividendo para evitar redondeos que no nos permitan llevar a cabo los experimentos de manera adecuada.
 
 Luego incorporamos `scale` a `cpubench` en pos de mantener cierta uniformidad en ambas variables `metric`.  
+
+Por otro lado, también se asignaron nombres particulares a los seis experimentos enunciados en la consigna a modo de facilitar el trabajo y análisis de datos. Los nombres claves de dichos experimentos son:
+
+* `cpu`: `cpubench N &` (un solo proceso `cpubench` en ejecución)
+* `cpu+cpu(2)`: `cpubench N &; cpubench N &; cpubench N &` (tres procesos `cpubench` ejecutándose en simultáneo)
+* `cpu+io(3)`: `cpubench N &; iobench N &; iobench N &; iobench N &` (un proceso `cpubench` ejecutándose en paralelo junto a otros tres procesos `iobench`)
+* `io`: `iobench N &` (un solo proceso `iobench` en ejecución)
+* `io+io(2)`: `iobench N &; iobench N &; iobench N &` (tres procesos `iobench` ejecutándose en simultáneo)
+* `io+cpu(3)`: `iobench N &; cpubench N &; cpubench N &; cpubench N &` (un proceso `iobench` ejecutándose en paralelo junto a otros tres procesos `cpubench`)
 
 <a name="experimento-1"></a>
 ### Experimento 1: ¿Cómo son planificados los programas `iobound` y `cpubound`?
@@ -836,7 +846,65 @@ Todos los procesos se ven perjudicados de manera similar en términos de operaci
 
 
 <a name="tercera-parte"></a>
-## **Tercera parte: Asignar prioridad a los procesos**
+## **Tercera parte: Implementación de MLFQ; MLFQ vs. RR**
+Con el nuevo planificador MLFQ implementado, el cual prioriza los procesos I/O-bound y penaliza de cierta forma a los procesos CPU-bound (desplazándolos a niveles de prioridad más bajos para que otros procesos puedan acceder a la CPU), se procedió a realizar las mismas mediciones de la parte 2. 
 
-<a name="cuarta-parte"></a>
-## **Cuarta parte: Implementar MLFQ**
+Mantenemos el criterio de analizar por separado a aquellas operaciones donde hacemos el foco en un proceso `cpubench` de aquellas que lo hacen sobre uno `iobench`, y en caso de experimentos mixtos tomamos como ejemplar al proceso solitario. Se explorará también el comportamiento de los experimentos bajo diferentes cuantos, contrastando ambos esquemas de planificación en escenarios similares.
+
+---
+
+![MLFQ: Gráfica de CPU](https://i.imgur.com/7CbmUU9.jpeg)
+
+Un patrón que se mantiene en ambos planificadores es que la reducción del cuanto disminuye drásticamente las kilo-operaciones por tick, que como dedujimos previamente se debe a los cada vez más frecuentes cambios de contexto y, en algunos casos, a la competencia por la CPU entre procesos.
+
+Con un cuanto de 100000, el planificador MLFQ muestra un rendimiento significativamente mayor al del Round-Robin. Esto es porque bajo el paradigma del RR, los procesos CPU-bound acaparan la CPU para ellos durante su tiempo asignado y no la comparten (la naturaleza "egoísta" que es inherente a estos procesos, como definimos en la parte 2). El MLFQ evita esto con su sistema de prioridades, permitiendo a los procesos CPU-bound alcanzar niveles de prioridad bajos y obtener más tiempo de CPU en sus propias colas, aumentando así la cantidad de operaciones realizadas por tick.
+
+Al diezmar el cuanto a 10000 comienzan a verse ciertos cambios interesantes. La brecha de rendimiento ya no es abrumadoramente notable a favor del MLFQ, si no que se empareja (incluso favoreciendo al planificador Round-Robin en ciertos experimentos). Consideramos que la aparición de cambios de contexto más frecuentes propios de un cuanto más pequeño sumado a la sobrecarga de la administración de las colas de prioridad del MLFQ son los causantes de este emparejamiento.
+
+Finalmente, con un cuanto extremadamente pequeño, la situación da un giro de 180 grados. Si bien la excesiva cantidad de cambios de contexto afecta a ambos planificadores, el RR se ve menos perjudicado pues no debe realizar cargas extra como la gestión de múltiples colas de prioridad.
+
+Podemos concluir que el MLFQ demuestra un rendimiento superior en cuantos grandes como el de 100000. El ajuste dinámico de prioridades de los procesos CPU-bound permite que puedan aprovechar más tiempo de CPU en colas de menor prioridad y así realizar una mayor cantidad de operaciones por tick. Por otro lado, en cuantos extremadamente bajos con cambios de contexto muy frecuentes, el planificador Round-Robin tiene un desempeño superior al no tener que lidiar con la sobrecarga del MLFQ en la gestión de colas.
+
+---
+
+![MLFQ: Gráfica de I/O](https://i.imgur.com/TO8sG5F.jpeg)
+
+Nuevamente, la reducción del cuanto es igual a menos operaciones por tick analizando cada experimento en particular. 
+
+Con un cuanto de 100000 puede notarse una notable diferencia de rendimiento a favor del MLFQ. El planificador Round-Robin no favorece a los procesos I/O-bound por su naturaleza de esperar a los procesos CPU-bound, impidiendo que puedan acceder frecuentemente a la CPU. La implementación del MLFQ opta por darle una mayor prioridad de los procesos I/O-bound y dándoles más frecuencia de ejecución a diferencia de los CPU-bound que van descendiendo a colas de menor prioridad.
+
+El "favoritismo" por los procesos I/O-bound se ve afectado a medida que se reduce el cuanto. Un cuanto de 10000 genera cambios de contexto más seguido y, sumado a la carga de gestionar las colas de prioridad, produce que el rendimiento del MLFQ se aplaste un poco, igualándolo con el obtenido con el planificador Round-Robin.
+
+De manera similar a lo analizado en los procesos CPU-bound, un cuanto de 1000 reduce drásticamente las operaciones por tick. Este declive se nota mucho más en el MLFQ, pues aparte de la abrumadora cantidad de cambios de contexto debe sobrellevar la sobrecarga u *overhead* del sistema de administración de prioridades por colas. Así la prioridad por los procesos I/O-bound es incluso más perjudicial para el rendimiento del planificador MLFQ.
+
+En conclusión, en los experimentos I/O-bound el MLFQ supera ampliamente a Round-Robin en IOPS. La estructura de colas de MLFQ permite que los procesos I/O-bound se ejecuten rápidamente en las colas de alta prioridad, maximizando las operaciones por tick al reducir el tiempo de espera. Un cuanto demasiado pequeño afecta drásticamente a las IOPS debido a los excesivos cambios de contexto, apenas favoreciendo al planificador RR pues no tiene una estructura de colas que administrar.
+
+---
+
+Por último, analicemos la cantidad de ticks ocurridos en cada experimento a través de diferentes cuantos y contrastando ambos esquemas de planificación:
+
+![MLFQ: Gráfica de ticks](https://i.imgur.com/rMXlNPV.jpeg)
+
+En un planificador MLFQ con un cuanto elevado los experimentos realizan mucho menos ticks en general. Esto se debe a la optimización de uso de la CPU por medio de priorizar procesos I/O-bound y permitir que los procesos CPU-bound bajen a colas de menor prioridad. En RR no existe una diferenciación en el manejo de los procesos, por lo que las operaciones requieren de más ticks para completarse.
+
+Un cuanto intermedio aumenta los ticks en todos los experimentos debido a la aparición de cambios de contexto más frecuentes, lo que genera que la brecha de ticks entre planificadores se estabilice y no sea tan desigual. Esto indica cierta tendencia a que en medida que el cuanto se disminuye, el rendimiento del planificador MLFQ va descendiendo y el del Round-Robin "en aumento" al compararlos entre sí. 
+
+Cuando trabajamos sobre un cuanto diminuto, MLFQ es menos efectivo en esta configuración debido a su sobrecarga de gestión de prioridades, mientras que Round-Robin mantiene una cantidad de ticks más controlada debido a su simplicidad.
+
+---
+
+A lo largo del análisis de las KOPS inherentes a los procesos CPU-bound, IOPS de los procesos I/O bound y la cantidad de ticks de cada experimento, notamos ciertos patrones y tendencias que nos parece prudente informar a modo de conclusión:
+> Como observación general, a medida que el cuanto se disminuye la cantidad de operaciones en general también baja, y por ende aumenta la cantidad de ticks ocurridos en cada experimento. Esto sucede en ambos planificadores en particular, aunque los rendimientos entre ellos al compararlos entre sí son diferentes.
+
+> Con un quantum elevado, el MLFQ es más eficiente tanto en términos de KOPS como de IOPS debido a su estructura de colas de prioridad. Este planificador, al diferenciar entre los tipos de proceso mediante su estructura de prioridades, permite que los procesos CPU-bound realicen más operaciones (KOPS) cuando bajan de prioridad, mientras que los procesos I/O-bound son priorizados en las colas superiores, logrando así una mayor eficiencia en IOPS y una menor carga de ticks.
+
+> Con un quantum intermedio, el rendimiento de RR y MLFQ se va emparejando en términos de KOPS e IOPS, así como también la cantidad de ticks. Si bien ambos tienen que lidiar con la aparición más reiterada de cambios de contexto, el MLFQ debe arrastrar también la sobrecarga de la gestión de sus colas de prioridad (y el Round-Robin no), generando que esa brecha tan distante en un cuanto mayor se vaya achicando.
+
+> Cuando el quantum es muy bajo, el MLFQ pierde eficiencia debido al *overhead* generado por su gestión de múltiples colas y prioridades, resultando en una cantidad masiva de ticks que impacta negativamente tanto en KOPS como en IOPS. En este caso, Round-Robin se comporta de manera más estable, ya que su falta de gestión de prioridades reduce el overhead, lo cual le permite manejar mejor la alta frecuencia de cambios de contexto.
+
+#### ¿Se puede producir *starvation* en el nuevo planificador?
+La inanición (o *starvation* en inglés) ocurre cuando ciertos procesos no reciben tiempo de CPU debido a que siempre hay otros procesos de mayor prioridad ejecutándose.
+
+Con esta implementación de MLFQ se podría decir que sí se produce inanición. Por ejemplo, en un posible caso de planificación de un solo proceso I/O de gran tamaño o incluso de múltiples procesos I/O en seguidilla, estos ocuparían constantemente la mayor prioridad de colas, relegando a la cola de baja prioridad a aquellos procesos CPU por tiempos prolongados. Estos morirían de hambre puesto que el "favoritismo" que tiene este planificador por los procesos I/O-bound impediría que los procesos de colas de baja prioridad puedan adquirir la CPU normalmente.
+
+Una forma de erradicar la inanición es mediante la aplicación de un **aumento de prioridad** o ***priority boost*** en el planificador, donde periódicamente este eleva la prioridad de todos los procesos a su nivel máximo (lo cual fue implementado y puede visualizarse en la branch `mlfq_estrella`).
