@@ -28,9 +28,7 @@ Este proyecto de laboratorio busca proporcionar una visión práctica y profunda
 ## **Dependencias**
 Para poder compilar y ejecutar el proyecto es necesario tener instalado el emulador QEMU, el cual nos permite trabajar amenamente con XV6.
 
- - **QEMU (Ubuntu)**: `sudo apt-get install qemu-system-riscv64 gcc-riscv64-linux-gnu`
- - **Fuente monoespaciada con soporte de caracteres** unicode: [`JetBrains Mono`](https://www.jetbrains.com/es-es/lp/mono/)
-
+ - **QEMU (Ubuntu)**: `sudo apt install qemu-system-riscv64 gcc-riscv64-linux-gnu`
 
 <a name="compilacion-y-ejecucion"></a>
 ## **Compilación y ejecución**
