@@ -80,10 +80,10 @@ Las doce ramas resultantes son las siguientes:
 * `scheduler_mlfq_quantum_10ms`: planificador MLFQ implementado por el cual se sustituye al RR de XV6 en la parte 4, con un cuanto de **100000**. 
 * `scheduler_mlfq_quantum_1ms`: planificador MLFQ implementado por el cual se sustituye al RR de XV6 en la parte 4, con un cuanto de **10000**.
 * `scheduler_mlfq_quantum_0.1ms`: planificador MLFQ implementado por el cual se sustituye al RR de XV6 en la parte 4, con un cuanto de **1000**. 
-* `mlfq_estrella`: contiene al **punto extra 1**.
-* `mlfq_different_quantums_2_estrella`: contiene al **punto extra 2**.
-* `mlfq_hlt_implementation`: contiene al **punto extra 3**.
-* `mlfq_time-syscall_5_estrella`: contiene al **punto extra 5**.
+* `mlfq_estrella_1_prioriy_boostt`: contiene al **punto extra 1**.
+* `mlfq_estrella_2_different_quantums`: contiene al **punto extra 2**.
+* `mlfq_estrella_3_hlt_implementation`: contiene al **punto extra 3**.
+* `mlfq_estrella_5_time_syscall`: contiene al **punto extra 5**.
 
 
 <a name="documentacion"></a>
