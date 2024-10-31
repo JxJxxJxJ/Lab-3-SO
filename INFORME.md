@@ -527,16 +527,30 @@ Nótese que `sched()` al ser una función que devuelve el control al planificado
 
 <a name="preg-5"></a>
 ### **5. ¿El cambio de contexto consume tiempo de un *quantum*?**
+Si. Debido a que en nuestra implementación un cambio de contexto se genera cada vez que hago un timer-interrupt se genera el siguiente comportamiento:
+Supongamos que tengo dos procesos: proceso `A` y proceso `B`, 
+[1] <Se ejecuta el proceso A> [2] <Se genera un timer interrupt> <Se hace kerneltrap, yield, sched y se planifica otro proceso> [3] <Se ejecuta B> [4]  
 
-No. Se podría visualizar la utilización del CPU en XV6 de la siguiente forma: 
-```
-... <quantum> <trap> <context_switch> <return_from_trap> <quantum> <trap> <contextswitch> ...
-``` 
+Supongamos un quantum de 10m e imaginemos que el proceso `A` usó todo su quantum al comienzo.
+Hay que tener en cuenta que los interrupts son periódicos, es decir se generan cada un intervalo fijo (el especificado en `start.c`).
+Para analizar el ejemplo voy a llevar cuenta de dos registros importantes, MTIME y MTIMECMP que son los que determinan cuándo se hará un timer interrupt. 
+* MTIME: lleva cuenta el tiempo actual (en ticks).
+* MTIMECMP: cuando MTIME sea igual a este, el CPU generará una interrupción. 
 
-El tiempo en el que el SO realiza un cambio de contexto entonces es una sobrecarga (*overhead*) para el sistema, no "le roba tiempo" a la ejecución de ningún proceso. Esto es porque mientras el proceso se ejecuta va pasando el tiempo y no es hasta una eventual interrupción por timer desde hardware que se realiza la secuencia explicada en la pregunta 3:
-```
-timer-interrupt -> kerneltrap() -> yield() -> sched() -> swtch() -> scheduler()
-```
+Comienzo con un MTIME = 0 y MTIMECMP = 10.
+[1] 
+MTIME = 0
+MTIMECMP = 10
+[2] 
+MTIME = 10 (el proceso A ha usado todo su quantum)
+MTIMECMP = 10
+Se genera un timer interrupt, ademas se setea el MTIMECMP en 20 (MTIME+interval=10+10) para establecer cuándo se hará la siguiente interrupción.
+[3] 
+MTIME = 11 (supongamos que hacer kerneltrap, yield, sched y planificar otro proceso consume 1ms)
+MTIMECMP = 20
+Ahora al elegirse y ejecutarse B, este tiene 9ms de tiempo de ejecución, no 10ms. 
+
+Por lo tanto en esta implementación (usando un timer interrupt que determine cuándo cambiar de contexto) el quantum si es consumido por el tiempo usado entre la ejecución de procesos.
 
 <a name="segunda-parte"></a>
 ## **Segunda parte: Medir operaciones de cómputo y de entrada/salida**
